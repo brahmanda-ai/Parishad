@@ -92,7 +92,7 @@ class SlotConfig:
     backend: Backend | str = Backend.TRANSFORMERS
     
     # Context and generation settings
-    context_length: int = 8192
+    context_length: int = 4096
     default_max_tokens: int = 1024
     default_temperature: float = 0.5
     top_p: float = 0.9
@@ -117,7 +117,7 @@ class SlotConfig:
     extra: dict[str, Any] = field(default_factory=dict)
     
     # Legacy fields for backward compatibility
-    max_context: int = 8192  # Alias for context_length
+    max_context: int = 4096  # Alias for context_length
     top_k: int = 50
     repetition_penalty: float = 1.0
     
@@ -131,7 +131,7 @@ class SlotConfig:
                 pass
         
         # Sync max_context with context_length
-        if self.max_context != 8192:
+        if self.max_context != 4096:
             self.context_length = self.max_context
     
     def to_backend_config(self) -> BackendConfig:

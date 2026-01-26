@@ -2610,7 +2610,10 @@ class ParishadApp(App):
         # Process with Sabha council
         progress = self.query_one("#role-progress", RoleProgressBar)
         progress.reset()
-        self.log_message("[dim]  ⎿ सभा विचार-विमर्श...[/dim]")  # Sabha deliberating in Hindi
+        if sys.platform == "win32":
+             self.log_message("[dim]  -- Sabha deliberating...[/dim]")
+        else:
+             self.log_message("[dim]  ⎿ सभा विचार-विमर्श...[/dim]")  # Sabha deliberating in Hindi
         
         if not self.council:
             self.log_message("\n[red]✗ Sabha council not loaded![/red]")

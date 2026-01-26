@@ -5,6 +5,12 @@ All notable changes to the **Parishad** project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.7] - 2026-01-26
+
+### Fixed
+- **Memory Optimization**: Reduced default context length from 8192 to 4096 tokens to prevent VRAM saturation and freezing on 4GB GPUs (like RTX 3050).
+- **Windows TUI Rendering**: Fixed "garbage characters" in loading spinner by switching to ASCII-safe animation on Windows.
+
 ## [0.1.6] - 2026-01-26
 
 ### Fixed
