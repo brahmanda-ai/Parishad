@@ -29,6 +29,25 @@ This approach achieves **higher reliability** and **lower latency** on consumer 
 - **🛡️ Structured Verification**: The `Prerak` (Checker) role actively challenges hallucinations using deterministic tools and cross-examination.
 - **🔌 Local-First Backends**: Native support for **Ollama**, **Llama.cpp**, **MLX**, and **Transformers**.
 
+## 🏛️ The Three Sabhas (Council Configurations)
+
+Parishad offers three distinct council sizes to balance speed, cost, and depth:
+
+### 1. Laghu Sabha (Fast Council)
+*   **Roles**: 5 (Darbari, Majumdar, Sainik, Prerak, Raja)
+*   **Use Case**: Quick queries, simple code generation, factual checks.
+*   **Models**: Optimized for Small/Mid models.
+
+### 2. Madhya Sabha (Core Council)
+*   **Roles**: 8 (Adds **Sar Senapati** [Coordinator], **Sacheev** [Secretary], **Dandadhyaksha** [Magistrate])
+*   **Use Case**: Balanced reasoning for standard development tasks.
+*   **Models**: Uses Mid/Big models for deeper analysis.
+
+### 3. Maha Sabha (Extended Council)
+*   **Roles**: 10 (Adds **Pantapradhan** [Prime Minister], **Vidushak** [Lateral Thinker])
+*   **Use Case**: Complex system design, creative problem solving, and strategic planning.
+*   **Models**: Full spectrum orchestration (Small + Mid + Big).
+
 ## 🏗️ Architecture
 
 Parishad organizes models into a directed graph of roles:
