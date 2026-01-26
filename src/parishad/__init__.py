@@ -5,7 +5,7 @@ Parishad orchestrates multiple local language models into a structured "council"
 that achieves higher reliability than a single model under strict compute budgets.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 from .orchestrator.engine import Parishad, ParishadEngine, PipelineConfig
 from .models.runner import ModelRunner, ModelConfig

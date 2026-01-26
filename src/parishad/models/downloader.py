@@ -553,6 +553,11 @@ class HuggingFaceDownloader:
             # Fallback: Guess the filename based on repo name
             # Most GGUF repos (like bartowski) follow: {ModelName}-{Quant}.gguf
             repo_name = repo_id.split("/")[-1]
+            
+            # Strip '-GGUF' suffix if present (common in repo names but not filenames)
+            if repo_name.lower().endswith("-gguf"):
+                repo_name = repo_name[:-5]
+                
             quant_suffix = quantization if quantization else "Q4_K_M"
             
             # Construct standard guess

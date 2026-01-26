@@ -3,7 +3,7 @@
 # Laghu Sabha matches standard structure but uses smaller/faster models
 
 name: "parishad-fast"
-version: "0.1.0"
+version: "0.1.1"
 description: "Fast 5-role pipeline: Analyze -> Plan -> Execute -> Check -> Judge"
 
 # Role definitions
