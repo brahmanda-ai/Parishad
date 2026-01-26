@@ -2707,6 +2707,12 @@ class ParishadApp(App):
             
             self.log_message(f"[dim]━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[/dim]\n")
             
+            # Check for silent file generation (common source of confusion)
+            for role_output in trace.roles:
+                if role_output.core_output and role_output.core_output.get("target_file"):
+                    fpath = role_output.core_output.get("target_file")
+                    self.log_message(f"\n[bold blue]📁 File Generated:[/bold blue] {fpath}")
+
             # Display the final answer from Raja
             if trace.final_answer:
                 answer = trace.final_answer.final_answer
@@ -2714,15 +2720,22 @@ class ParishadApp(App):
             elif trace.error:
                 self.log_message(f"\n[red]Error: {trace.error}[/red]")
             else:
-                self.log_message("\n[yellow]No answer generated[/yellow]")
+                 # Check if we generated a file but no text answer
+                file_gen = any(r.core_output and r.core_output.get("target_file") for r in trace.roles)
+                if not file_gen:
+                    self.log_message("\n[yellow]No answer generated[/yellow]")
             
         except Exception as e:
             import traceback
             tb = traceback.format_exc()
             self.log_message(f"\n[red]Error ({type(e).__name__}): {e}[/red]\n[dim]{tb[:500]}...[/dim]")
         finally:
-            # Always reset processing flag
+            # Always reset processing flag and re-enable input
             self._processing_query = False
+            try:
+                self.query_one("#user-input").focus()
+            except:
+                pass
     
     def handle_command(self, parsed: ParsedInput) -> None:
         """Handle slash commands with ParsedInput."""

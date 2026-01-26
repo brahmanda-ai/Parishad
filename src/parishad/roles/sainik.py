@@ -53,6 +53,7 @@ Guidelines:
 - If writing code, put the COMPLETE runnable code in "content".
 - If writing text, put the clear explanation in "content".
 - If the user asked to change/create a file, you MUST specify "target_file".
+- IMPORTANT: Do NOT create files unless explicitly asked! For general questions/explanations, keep "target_file": null.
 - "target_file" should be relative to the current directory (e.g., "src/main.py").
 - If "target_file" is a text/markdown/json file (not executable code), put the RAW content in "content". DO NOT write a Python script to create it.
 - If you need to Use a tool, add it to `tool_calls`. Available tools will be listed in the prompt.

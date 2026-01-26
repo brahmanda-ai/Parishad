@@ -5,6 +5,13 @@ All notable changes to the **Parishad** project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.6] - 2026-01-26
+
+### Fixed
+- **TUI "Freezing"**: Fixed an issue where the UI appeared frozen after model execution if no text answer was generated.
+- **Silent File Generation**: Added explicit alert in TUI when the model creates a file instead of answering.
+- **Prompt Guardrails**: Updated `Sainik` (Worker) system prompt to prevent unrequested file creation for simple queries.
+
 ## [0.1.5] - 2026-01-26
 
 ### Added
