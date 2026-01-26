@@ -21,7 +21,7 @@ class RoleSpec:
     name: str
     class_name: str
     slot: str
-    version: str = "0.1.1"
+    version: str = "0.1.3"
     budget_tokens: int = 1000
     dependencies: list[str] = field(default_factory=list)
     max_tokens: Optional[int] = None
