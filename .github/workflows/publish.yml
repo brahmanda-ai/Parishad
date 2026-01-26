@@ -35,19 +35,27 @@ jobs:
           # Extract version from pyproject.toml
           VERSION=$(python -c "import toml; print(toml.load('pyproject.toml')['project']['version'])")
           echo "Detected version: $VERSION"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
           
           # Check if tag exists
           if git rev-parse "v$VERSION" >/dev/null 2>&1; then
-            echo "Tag v$VERSION already exists. Skipping release."
-            echo "new_release=false" >> $GITHUB_OUTPUT
+            echo "Tag v$VERSION already exists."
+            if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+              echo "Manual trigger detected. Retrying release for existing version."
+              echo "new_release=true" >> $GITHUB_OUTPUT
+              echo "skip_tag=true" >> $GITHUB_OUTPUT
+            else
+              echo "Skipping release to prevent duplicates."
+              echo "new_release=false" >> $GITHUB_OUTPUT
+            fi
           else
             echo "New version detected!"
             echo "new_release=true" >> $GITHUB_OUTPUT
-            echo "version=$VERSION" >> $GITHUB_OUTPUT
+            echo "skip_tag=false" >> $GITHUB_OUTPUT
           fi
 
       - name: Create Tag
-        if: steps.check_version.outputs.new_release == 'true'
+        if: steps.check_version.outputs.new_release == 'true' && steps.check_version.outputs.skip_tag != 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
