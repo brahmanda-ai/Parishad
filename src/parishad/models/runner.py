@@ -307,10 +307,20 @@ def _create_backend(backend_type: Backend | str) -> BackendProtocol:
     
     if backend_name == "llama_cpp":
         if not is_backend_available("llama_cpp"):
-            raise BackendNotAvailableError(
-                "llama-cpp-python is not installed. "
-                "Install with: pip install llama-cpp-python"
-            )
+            import platform
+            msg = "llama-cpp-python is not installed."
+            
+            if platform.system() == "Windows":
+                msg += (
+                    "\n\n❌ compilation failed likely due to missing MSVC/CUDA."
+                    "\n💡 SOLUTION: Install a pre-built wheel for Windows:"
+                    "\n   pip install llama-cpp-python --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cu121"
+                    "\n   (Select the cpu or cuda version matching your system)"
+                )
+            else:
+                msg += "\nInstall with: pip install llama-cpp-python"
+                
+            raise BackendNotAvailableError(msg)
         return LlamaCppBackend()
     
     if backend_name == "openai":

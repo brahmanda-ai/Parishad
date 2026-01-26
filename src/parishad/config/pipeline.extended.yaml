@@ -3,7 +3,7 @@
 # Uses 3 model slots: small + mid + big
 
 name: "parishad-extended"
-version: "0.1.3"
+version: "0.1.4"
 description: "Maha Sabha: Full 10-role council including Lateral Thinker (Vidushak)"
 
 # Role definitions

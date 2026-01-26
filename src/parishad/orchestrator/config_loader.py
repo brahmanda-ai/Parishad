@@ -21,7 +21,7 @@ class RoleSpec:
     name: str
     class_name: str
     slot: str
-    version: str = "0.1.3"
+    version: str = "0.1.4"
     budget_tokens: int = 1000
     dependencies: list[str] = field(default_factory=list)
     max_tokens: Optional[int] = None
@@ -110,7 +110,7 @@ def load_pipeline_config(name: str, config_dir: Optional[Path] = None) -> list[R
             name=role_name.lower(),  # Always store as lowercase for consistent lookups
             class_name=role_config.get("class", role_name.capitalize()),
             slot=role_config.get("slot", "mid"),
-            version=role_config.get("version", "0.1.1"),
+            version=role_config.get("version", "0.1.4"),
             budget_tokens=role_config.get("budget_tokens", 1000),
             dependencies=role_config.get("dependencies", []),
             max_tokens=role_config.get("max_tokens"),
