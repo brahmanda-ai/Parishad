@@ -1,0 +1,160 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environment
+venv/
+.venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb
+
+# pytest
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+pytestdebug.log
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# pytype static type analyzer
+.pytype/
+
+# Cython debug symbols
+cython_debug/
+
+# Environment variables
+# .env  <-- Un-ignored for this setup
+.env.local
+.env.*.local
+
+# Logs
+logs/
+*.log
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Parishad-specific
+traces/
+trace_*.json
+outputs/
+*.trace.json
+parishad_traces/
+benchmark_traces/
+gaia_benchmark.log
+gaia_results.jsonl
+
+# API keys and secrets
+secrets.yaml
+.secrets/
+api_keys.txt
+*.pem
+*.key
+
+# Model cache (downloaded model files, not source code)
+# Use specific paths to avoid ignoring parishad/models/ source code
+/models/
+**/model_cache/
+*.gguf
+*.safetensors
+*.bin
+!parishad/models/
+
+.cache/
+
+# Test outputs
+test_outputs/
+test_traces/
+.test_data/
+# Documentation builds
+docs/_build/
+docs/.doctrees/
+site/
+
+# OS specific
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Backup files
+*.bak
+*.backup
+*.tmp
+*~.nib
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Local config overrides
+local_config.yaml
+config.local.yaml
+pipeline.*.local.yaml
+

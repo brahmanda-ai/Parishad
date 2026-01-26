@@ -19,8 +19,9 @@ class PerceptionTool(BaseTool):
     name = "perception"
     description = "Convert files (PDF, Docx, Images, Audio) into text. Use for reading docs or seeing images."
     
-    def __init__(self):
+    def __init__(self, llm_config: Optional[Dict[str, Any]] = None):
         super().__init__()
+        self.llm_config = llm_config
         self._markitdown = None
 
     def _get_markitdown(self):
