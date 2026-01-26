@@ -1,0 +1,172 @@
+# Parishad-Extended Pipeline Configuration
+# 10 roles: Maha Sabha (Full 10-Unique-Role Council)
+# Uses 3 model slots: small + mid + big
+
+name: "parishad-extended"
+version: "0.1.0"
+description: "Maha Sabha: Full 10-role council including Lateral Thinker (Vidushak)"
+
+# Role definitions
+roles:
+  pantapradhan:
+    name: "pantapradhan"
+    class: "Pantapradhan"
+    description: "Prime Minister: Meta-planning and strategic oversight"
+    slot: "big"
+    max_tokens: 1500
+    temperature: 0.4
+    output_schema: "meta_plan"
+
+  darbari:
+    name: "darbari"
+    class: "Darbari"
+    description: "Analyzer: Deep analysis of query"
+    slot: "mid"
+    max_tokens: 1200
+    temperature: 0.3
+    output_schema: "task_spec"
+
+  majumdar:
+    name: "majumdar"
+    class: "Majumdar"
+    description: "Planner: Creates detailed execution plan"
+    slot: "mid"
+    max_tokens: 1400
+    temperature: 0.5
+    output_schema: "plan"
+
+  sar_senapati:
+    name: "sar_senapati"
+    class: "SarSenapati"
+    description: "Coordinator: Execution strategy"
+    slot: "mid"
+    max_tokens: 1000
+    temperature: 0.4
+    output_schema: "execution_strategy"
+
+  vidushak:
+    name: "vidushak"
+    class: "Vidushak"
+    description: "Lateral Thinker: Challenges plan with creative alternatives"
+    slot: "mid"
+    max_tokens: 1000
+    temperature: 0.8
+    output_schema: "creative_challenge"
+
+  sainik:
+    name: "sainik"
+    class: "Sainik"
+    description: "Implementor: Executes optimized plan"
+    slot: "big"
+    max_tokens: 2500
+    temperature: 0.6
+    output_schema: "candidate"
+
+  prerak:
+    name: "prerak"
+    class: "Prerak"
+    description: "Checker: Detailed validation"
+    slot: "mid"
+    max_tokens: 1200
+    temperature: 0.3
+    output_schema: "verdict"
+
+  sacheev:
+    name: "sacheev"
+    class: "Sacheev"
+    description: "Secretary: Documents and summarizes"
+    slot: "small"
+    max_tokens: 800
+    temperature: 0.3
+    output_schema: "summary"
+
+  dandadhyaksha:
+    name: "dandadhyaksha"
+    class: "Dandadhyaksha"
+    description: "Magistrate: Enforces quality"
+    slot: "mid"
+    max_tokens: 1000
+    temperature: 0.3
+    output_schema: "enforcement"
+
+  raja:
+    name: "raja"
+    class: "Raja"
+    description: "Judge: Final answer & formatting"
+    slot: "big"
+    max_tokens: 1800
+    temperature: 0.3
+    output_schema: "final_answer"
+
+# Pipeline execution order (10 UNIQUE roles)
+pipeline:
+  - pantapradhan
+  - darbari
+  - majumdar
+  - sar_senapati
+  - vidushak
+  - sainik
+  - prerak
+  - sacheev
+  - dandadhyaksha
+  - raja
+
+# Data flow between roles
+data_flow:
+  pantapradhan:
+    inputs: ["user_query"]
+    outputs: ["meta_plan"]
+  darbari:
+    inputs: ["user_query", "meta_plan"]
+    outputs: ["task_spec"]
+  majumdar:
+    inputs: ["user_query", "meta_plan", "task_spec"]
+    outputs: ["plan"]
+  sar_senapati:
+    inputs: ["user_query", "task_spec", "plan"]
+    outputs: ["execution_strategy"]
+  vidushak:
+    inputs: ["user_query", "plan"]
+    outputs: ["creative_challenge"]
+  sainik:
+    inputs: ["user_query", "task_spec", "plan", "execution_strategy", "creative_challenge"]
+    outputs: ["candidate"]
+  prerak:
+    inputs: ["user_query", "candidate", "plan"]
+    outputs: ["verdict"]
+  sacheev:
+    inputs: ["user_query", "candidate", "verdict"]
+    outputs: ["summary"]
+  dandadhyaksha:
+    inputs: ["user_query", "candidate", "verdict", "summary"]
+    outputs: ["enforcement"]
+  raja:
+    inputs: ["user_query", "candidate", "verdict", "summary", "enforcement"]
+    outputs: ["final_answer"]
+
+# Pipeline-specific settings
+settings:
+  allow_retry: true
+  strict_validation: true
+  enable_checker: true
+  enable_planner: true
+  truncation_policy: "conservative"
+  max_total_tokens: 15000
+
+# Budget policies
+budget:
+  max_tokens_per_query: 15000
+  
+  # Per-role token allocations
+  role_budgets:
+    pantapradhan: 1500
+    darbari: 1200
+    majumdar: 1400
+    sar_senapati: 1000
+    vidushak: 1000
+    sainik: 2500
+    prerak: 1200
+    sacheev: 800
+    dandadhyaksha: 1000
+    raja: 1800
+    reserve: 100

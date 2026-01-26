@@ -1,0 +1,122 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "parishad"
+version = "0.1.0"
+description = "A cost-aware, local-first council of heterogeneous LLMs for reliable reasoning, coding, and factual correctness"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+authors = [
+    { name = "Parishad Team" }
+]
+keywords = [
+    "llm",
+    "multi-agent",
+    "council",
+    "local-llm",
+    "reasoning",
+    "code-generation",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+dependencies = [
+    "pydantic>=2.0.0",
+    "pydantic-settings>=2.0.0",
+    "pyyaml>=6.0",
+    "jsonschema>=4.0.0",
+    "rich>=13.0.0",
+    "click>=8.0.0",
+    "httpx>=0.25.0",
+    "openai>=1.0.0",
+    "tiktoken>=0.5.0",
+    "numpy<2.0",
+]
+
+[project.optional-dependencies]
+local = [
+    "llama-cpp-python>=0.2.0",
+    "transformers>=4.35.0",
+    "torch>=2.0.0",
+    "accelerate>=0.25.0",
+]
+retrieval = [
+    "faiss-cpu>=1.7.0",
+    "chromadb>=0.5.0",
+    "sentence-transformers>=2.2.0",
+    "pypdf>=3.0.0",
+]
+
+dev = [
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0.0",
+    "pre-commit>=3.0.0",
+]
+benchmark = [
+    "datasets>=2.14.0",
+    "pandas>=2.0.0",
+    "tqdm>=4.66.0",
+]
+cuda = [
+    "transformers>=4.35.0",
+    "torch>=2.0.0",
+    "accelerate>=0.25.0",
+    "bitsandbytes>=0.41.0",
+    "auto-gptq>=0.6.0",
+    "autoawq>=0.1.0",
+    "optimum>=1.16.0",
+    "protobuf>=4.0.0",
+]
+mlx = [
+    "mlx-lm>=0.1.0",
+]
+perception = [
+    "markitdown>=0.0.1",
+]
+distributed = [
+    "grpcio>=1.50.0",
+    "grpcio-tools>=1.50.0",
+]
+all = [
+    "parishad[local,retrieval,dev,benchmark]",
+]
+
+[project.scripts]
+parishad = "parishad.cli.main:cli"
+
+[project.urls]
+Homepage = "https://github.com/parishad-council/parishad"
+Documentation = "https://github.com/parishad-council/parishad#readme"
+Repository = "https://github.com/parishad-council/parishad"
+Issues = "https://github.com/parishad-council/parishad/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/parishad"]
+
+[tool.black]
+line-length = 100
+target-version = ["py310", "py311", "py312"]
+
+[tool.ruff]
+line-length = 100
+select = ["E", "F", "I", "N", "W", "UP"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_ignores = true
+disallow_untyped_defs = true

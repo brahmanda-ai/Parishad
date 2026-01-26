@@ -1,0 +1,89 @@
+# Parishad-Fast Pipeline Configuration
+# 5 roles: Full Council (Small/Faster Models)
+# Laghu Sabha matches standard structure but uses smaller/faster models
+
+name: "parishad-fast"
+version: "0.1.0"
+description: "Fast 5-role pipeline: Analyze -> Plan -> Execute -> Check -> Judge"
+
+# Role definitions
+roles:
+  darbari:
+    name: "darbari"
+    class: "Darbari"
+    description: "Analyzer: Identifies requirements"
+    slot: "small"
+    max_tokens: 800
+    temperature: 0.3
+    output_schema: "task_spec"
+
+  majumdar:
+    name: "majumdar"
+    class: "Majumdar"
+    description: "Planner: Creates simple plan"
+    slot: "mid"
+    max_tokens: 1000
+    temperature: 0.5
+    output_schema: "plan"
+
+  sainik:
+    name: "sainik"
+    class: "Sainik"
+    description: "Implementor: Executes plan"
+    slot: "mid"
+    max_tokens: 1500
+    temperature: 0.6
+    output_schema: "candidate"
+
+  prerak:
+    name: "prerak"
+    class: "Prerak"
+    description: "Checker: Validates output"
+    slot: "small"
+    max_tokens: 800
+    temperature: 0.3
+    output_schema: "verdict"
+
+  raja:
+    name: "raja"
+    class: "Raja"
+    description: "Judge: Formats final answer"
+    slot: "small"
+    max_tokens: 1000
+    temperature: 0.3
+    output_schema: "final_answer"
+
+# Execution order
+pipeline:
+  - darbari
+  - majumdar
+  - sainik
+  - prerak
+  - raja
+
+# Data flow between roles
+data_flow:
+  darbari:
+    inputs: ["user_query"]
+    outputs: ["task_spec"]
+  majumdar:
+    inputs: ["user_query", "task_spec"]
+    outputs: ["plan"]
+  sainik:
+    inputs: ["user_query", "task_spec", "plan"]
+    outputs: ["candidate"]
+  prerak:
+    inputs: ["user_query", "candidate", "plan"]
+    outputs: ["verdict"]
+  raja:
+    inputs: ["user_query", "candidate", "verdict", "plan"]
+    outputs: ["final_answer"]
+
+# Pipeline-specific settings
+settings:
+  allow_retry: true
+  strict_validation: false
+  enable_checker: true
+  enable_planner: true
+  truncation_policy: "aggressive"
+  max_total_tokens: 4000

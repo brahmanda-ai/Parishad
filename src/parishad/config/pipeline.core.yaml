@@ -1,0 +1,128 @@
+# Parishad-Core Pipeline Configuration
+# 8 roles: Madhya Sabha (Balanced Council)
+# Uses 2 model slots: mid + big
+
+name: "parishad-core"
+version: "0.1.0"
+description: "Balanced 8-role pipeline: Madhya Sabha with extended council"
+
+# Role definitions
+roles:
+  darbari:
+    name: "darbari"
+    class: "Darbari"
+    description: "Analyzer: Deeply analyzes query"
+    slot: "mid"
+    max_tokens: 1000
+    temperature: 0.3
+    output_schema: "task_spec"
+
+  majumdar:
+    name: "majumdar"
+    class: "Majumdar"
+    description: "Planner: Creates detailed plan"
+    slot: "mid"
+    max_tokens: 1200
+    temperature: 0.5
+    output_schema: "plan"
+
+  sar_senapati:
+    name: "sar_senapati"
+    class: "SarSenapati"
+    description: "Coordinator: Orchestrates execution strategy"
+    slot: "mid"
+    max_tokens: 1000
+    temperature: 0.4
+    output_schema: "execution_strategy"
+
+  sainik:
+    name: "sainik"
+    class: "Sainik"
+    description: "Implementor: Executes plan"
+    slot: "big"
+    max_tokens: 2500
+    temperature: 0.6
+    output_schema: "candidate"
+
+  prerak:
+    name: "prerak"
+    class: "Prerak"
+    description: "Checker: Validates correctness"
+    slot: "mid"
+    max_tokens: 1200
+    temperature: 0.3
+    output_schema: "verdict"
+
+  sacheev:
+    name: "sacheev"
+    class: "Sacheev"
+    description: "Secretary: Documents and summarizes"
+    slot: "mid"
+    max_tokens: 800
+    temperature: 0.3
+    output_schema: "summary"
+
+  dandadhyaksha:
+    name: "dandadhyaksha"
+    class: "Dandadhyaksha"
+    description: "Magistrate: Enforces quality standards"
+    slot: "mid"
+    max_tokens: 1000
+    temperature: 0.3
+    output_schema: "enforcement"
+
+  raja:
+    name: "raja"
+    class: "Raja"
+    description: "Judge: Final answer & formatting"
+    slot: "big"
+    max_tokens: 1500
+    temperature: 0.3
+    output_schema: "final_answer"
+
+# Pipeline execution order (8 roles)
+pipeline:
+  - darbari
+  - majumdar
+  - sar_senapati
+  - sainik
+  - prerak
+  - sacheev
+  - dandadhyaksha
+  - raja
+
+# Data flow between roles
+data_flow:
+  darbari:
+    inputs: ["user_query"]
+    outputs: ["task_spec"]
+  majumdar:
+    inputs: ["user_query", "task_spec"]
+    outputs: ["plan"]
+  sar_senapati:
+    inputs: ["user_query", "task_spec", "plan"]
+    outputs: ["execution_strategy"]
+  sainik:
+    inputs: ["user_query", "task_spec", "plan", "execution_strategy"]
+    outputs: ["candidate"]
+  prerak:
+    inputs: ["user_query", "candidate", "plan"]
+    outputs: ["verdict"]
+  sacheev:
+    inputs: ["user_query", "candidate", "verdict"]
+    outputs: ["summary"]
+  dandadhyaksha:
+    inputs: ["user_query", "candidate", "verdict", "summary"]
+    outputs: ["enforcement"]
+  raja:
+    inputs: ["user_query", "candidate", "verdict", "summary", "enforcement"]
+    outputs: ["final_answer"]
+
+# Pipeline-specific settings
+settings:
+  allow_retry: true
+  strict_validation: true
+  enable_checker: true
+  enable_planner: true
+  truncation_policy: "moderate"
+  max_total_tokens: 10000
