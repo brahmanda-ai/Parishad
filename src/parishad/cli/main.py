@@ -189,6 +189,11 @@ def cli(ctx):
       config    - View or modify configuration
       sthapana  - स्थापना (Setup) - Configure your Parishad Sabha
     """
+    if ctx.invoked_subcommand != "init":
+        # Check backend installation (skip for init/config commands if needed, but safer to just check)
+        from ..utils.installer import check_and_install_backend
+        check_and_install_backend()
+
     if ctx.invoked_subcommand is None:
         # First run - ask for permissions
         if is_first_run():

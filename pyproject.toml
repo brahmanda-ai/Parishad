@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "parishad"
-version = "0.1.4"
+version = "0.1.5"
 description = "A cost-aware, local-first council of heterogeneous LLMs for reliable reasoning, coding, and factual correctness"
 readme = "README.md"
 license = "MIT"
