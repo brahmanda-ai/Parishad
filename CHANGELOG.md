@@ -5,6 +5,13 @@ All notable changes to the **Parishad** project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.8] - 2026-02-04
+
+### Fixed
+- **TUI Freeze on Windows**: Resolved GIL blocking issue that caused the TUI to freeze during llama-cpp inference by moving model execution to a separate subprocess.
+- **File Spam Prevention**: Added smart filtering to prevent unwanted file creation during general queries and math problems. Files are now only created when explicitly requested.
+- **Output Persistence**: Implemented automatic `output.json` updates with final answers for every query execution.
+
 ## [0.1.7] - 2026-01-26
 
 ### Fixed
