@@ -88,6 +88,7 @@ parishad_traces/
 benchmark_traces/
 gaia_benchmark.log
 gaia_results.jsonl
+requirements.txt
 
 # API keys and secrets
 secrets.yaml
