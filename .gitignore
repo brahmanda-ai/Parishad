@@ -159,5 +159,5 @@ local_config.yaml
 config.local.yaml
 pipeline.*.local.yaml
 
-requirements.txt
+
 
