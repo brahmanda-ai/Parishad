@@ -16,6 +16,8 @@ import sys
 import subprocess
 import socket
 import shutil
+import threading
+import queue
 from pathlib import Path
 from typing import Optional, Dict, List, Tuple
 
@@ -2187,6 +2189,40 @@ class ParishadApp(App):
         """Message to open setup screen from worker thread."""
         pass
     
+    # Custom messages for non-blocking thread worker communication
+    class LogMessage(Message):
+        """Non-blocking log message from worker thread."""
+        def __init__(self, text: str) -> None:
+            self.text = text
+            super().__init__()
+    
+    class SabhaResultReady(Message):
+        """Non-blocking message when Sabha result is ready."""
+        def __init__(self, trace) -> None:
+            self.trace = trace
+            super().__init__()
+    
+    class SabhaError(Message):
+        """Non-blocking message when Sabha encounters an error."""
+        def __init__(self, error: Exception, traceback_str: str) -> None:
+            self.error = error
+            self.traceback_str = traceback_str
+            super().__init__()
+    
+    class CouncilReady(Message):
+        """Non-blocking message when council initialization completes."""
+        def __init__(self, success: bool, profile: str = "", error_msg: str = "") -> None:
+            self.success = success
+            self.profile = profile
+            self.error_msg = error_msg
+            super().__init__()
+    
+    class WorkerComplete(Message):
+        """Non-blocking message when any worker completes."""
+        def __init__(self, worker_type: str) -> None:
+            self.worker_type = worker_type
+            super().__init__()
+    
     CSS = CSS
     SCREENS = {"setup": SetupScreen}
     BINDINGS = [
@@ -2203,6 +2239,12 @@ class ParishadApp(App):
         self.download_progress_line = None  # Track last progress line for updates
         self._initializing = False  # Prevent concurrent initialization
         self._processing_query = False  # Prevent concurrent query processing
+        
+        # CRITICAL FOR WINDOWS: Thread-safe result queue for native threading
+        # This bypasses Textual's worker system which causes freezes on Windows
+        self._result_queue = queue.Queue()
+        self._worker_thread = None
+        self._subprocess = None  # For subprocess-based inference
         
         # Load config from disk
         self.config = load_parishad_config()
@@ -2306,8 +2348,9 @@ class ParishadApp(App):
         if self._initializing:
             return
         
-        # Run model loading asynchronously to avoid freezing UI
-        self.run_worker(self._async_initialize_council(), exclusive=True)
+        # Run model loading in a thread worker to avoid freezing UI on Windows
+        # CRITICAL: Using thread=True ensures blocking model loading doesn't freeze the TUI
+        self.run_worker(self._initialize_council_thread_worker, thread=True, exclusive=True)
     
     async def _async_initialize_council(self) -> None:
         """Async worker to initialize Sabha council without blocking UI."""
@@ -2438,6 +2481,117 @@ class ParishadApp(App):
                 f"[red]{type(e).__name__}: {e}[/red]\n"
                 f"[dim]{tb}[/dim]\n"
             )
+            self.council = None
+        finally:
+            self._initializing = False
+    
+    def _initialize_council_thread_worker(self) -> None:
+        """
+        Initialize Sabha council in a dedicated thread worker.
+        
+        CRITICAL FOR WINDOWS: This method runs in a real OS thread (not an asyncio executor)
+        which prevents the TUI from freezing during blocking model loading.
+        
+        UI updates are sent via non-blocking post_message to prevent deadlock.
+        """
+        if self._initializing:
+            self.post_message(self.LogMessage("[yellow]Already initializing...[/yellow]\n"))
+            return
+        
+        self._initializing = True
+        
+        try:
+            from parishad.orchestrator.engine import Parishad
+            from parishad.config.user_config import load_user_config
+            
+            self.post_message(self.LogMessage("[cyan]🔄 Initializing Sabha council...[/cyan]\n"))
+            
+            # Load user config for profile (same as CLI run does)
+            user_cfg = load_user_config()
+            profile = user_cfg.default_profile
+            mode = user_cfg.default_mode
+            
+            self.post_message(self.LogMessage(f"[dim]  • Profile: {profile}[/dim]\n"))
+            self.post_message(self.LogMessage(f"[dim]  • Mode: {mode}[/dim]\n"))
+            
+            # Get pipeline config from Sabha selection
+            if self.config:
+                config_name = self.config.get_pipeline_config()
+                self.post_message(self.LogMessage(f"[dim]  • Pipeline: {config_name}[/dim]\n"))
+            else:
+                config_name = "core"  # Default fallback
+                self.post_message(self.LogMessage(f"[dim]  • Pipeline: {config_name} (default)[/dim]\n"))
+            
+            self.post_message(self.LogMessage(f"[yellow]⏳ Loading models (this may take 30-60 seconds)...[/yellow]\n"))
+            self.post_message(self.LogMessage(f"[dim]  • Creating Parishad engine...[/dim]\n"))
+            
+            # Build user_forced_config from model_map
+            user_forced_config = {}
+            if self.config and self.config.model_map:
+                # Initialize manager to resolve paths
+                from parishad.models.downloader import ModelManager
+                model_manager = ModelManager()
+                
+                msg_backend = self.config.backend or "ollama"
+                
+                for slot, model_id in self.config.model_map.items():
+                    # Default to current config backend
+                    current_backend = msg_backend
+                    model_file = None
+                    
+                    # Check if it's a known model to resolve backend/path
+                    model_info = model_manager.registry.get(model_id)
+                    if model_info:
+                        # Handle Enum comparison correctly
+                        source = model_info.source.value if hasattr(model_info.source, "value") else str(model_info.source)
+                        
+                        if source == "local":
+                            current_backend = "llama_cpp"
+                            model_file = str(model_info.path)
+                        elif source == "ollama":
+                            current_backend = "ollama"
+                        elif source == "mlx":
+                            current_backend = "mlx"
+                    else:
+                        # Fallback heuristics if not in registry
+                        if model_id.startswith("local:"):
+                            current_backend = "llama_cpp"
+                        elif model_id.startswith("ollama:") or ":" in model_id:
+                            current_backend = "ollama"
+
+                    user_forced_config[slot] = {
+                        "model_id": model_id,
+                        "backend_type": current_backend
+                    }
+                    if model_file:
+                        user_forced_config[slot]["model_file"] = model_file
+
+            # Create the Parishad engine (blocking call in this thread)
+            self.council = Parishad(
+                config=config_name,
+                model_config_path=None,  # Let engine use profiles + models.yaml
+                profile=profile,
+                pipeline_config_path=None,
+                trace_dir=None,
+                mock=False,
+                stub=False,
+                mode=mode,
+                user_forced_config=user_forced_config or None,
+                no_retry=False,
+            )
+            
+            if self.council:
+                self.post_message(self.CouncilReady(success=True, profile=profile))
+            else:
+                self.post_message(self.CouncilReady(success=False, error_msg="Council initialization returned None"))
+            
+        except Exception as e:
+            import traceback
+            tb = traceback.format_exc()
+            self.post_message(self.CouncilReady(
+                success=False, 
+                error_msg=f"{type(e).__name__}: {e}\n{tb}"
+            ))
             self.council = None
         finally:
             self._initializing = False
@@ -2626,8 +2780,145 @@ class ParishadApp(App):
             self.log_message("[yellow]⚠ Already processing a query, please wait...[/yellow]")
             return
         
-        # Run Sabha execution asynchronously to prevent UI freezing
-        self.run_worker(self._async_run_sabha(final_prompt, progress), exclusive=True)
+        # CRITICAL FOR WINDOWS: The GIL blocks Textual's event loop during llama-cpp inference
+        # even when using threads. We use subprocess.Popen to spawn a SEPARATE Python process.
+        # This is the only way to keep the TUI responsive on Windows with llama-cpp-python.
+        # See: docs/TUI_FREEZE_WINDOWS.md for full technical explanation.
+        self._processing_query = True
+        
+        # Save query to temp file for subprocess to read
+        query_file = Path.home() / ".parishad" / "temp_query.txt"
+        result_file = Path.home() / ".parishad" / "temp_result.json"
+        status_file = Path.home() / ".parishad" / "temp_status.txt"
+        
+        # Clean up old files
+        for f in [result_file, status_file]:
+            if f.exists():
+                f.unlink()
+        
+        query_file.write_text(final_prompt, encoding="utf-8")
+        
+        # Get the Python executable path
+        python_exe = sys.executable
+        
+        # Build inline script that runs inference and saves result
+        inline_script = f'''
+import sys
+import json
+from pathlib import Path
+
+query_file = Path(r"{query_file}")
+result_file = Path(r"{result_file}")
+status_file = Path(r"{status_file}")
+
+try:
+    status_file.write_text("starting", encoding="utf-8")
+    
+    query = query_file.read_text(encoding="utf-8")
+    
+    status_file.write_text("loading", encoding="utf-8")
+    
+    # Import and run inference
+    from parishad.orchestrator.engine import Parishad
+    from parishad.config.user_config import load_user_config
+    
+    user_cfg = load_user_config()
+    
+    council = Parishad(
+        config="core",
+        profile=user_cfg.default_profile,
+        mode=user_cfg.default_mode,
+    )
+    
+    status_file.write_text("running", encoding="utf-8")
+    
+    trace = council.run(query)
+    
+    status_file.write_text("complete", encoding="utf-8")
+    
+    # Save result as JSON
+    result = {{
+        "success": True,
+        "roles": len(trace.roles),
+        "tokens": trace.total_tokens,
+        "final_answer": trace.final_answer.final_answer if trace.final_answer else None,
+        "error": trace.error,
+    }}
+    result_file.write_text(json.dumps(result, indent=2), encoding="utf-8")
+    
+except Exception as e:
+    import traceback
+    result = {{
+        "success": False,
+        "error": str(e),
+        "traceback": traceback.format_exc()
+    }}
+    result_file.write_text(json.dumps(result, indent=2), encoding="utf-8")
+    status_file.write_text("error", encoding="utf-8")
+'''
+        
+        # Write script to temp file
+        script_file = Path.home() / ".parishad" / "temp_inference_script.py"
+        script_file.write_text(inline_script, encoding="utf-8")
+        
+        # Launch subprocess - runs in a COMPLETELY SEPARATE PROCESS (no GIL sharing!)
+        # Use CREATE_NO_WINDOW on Windows to avoid console popup
+        startupinfo = None
+        if sys.platform == "win32":
+            startupinfo = subprocess.STARTUPINFO()
+            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            startupinfo.wShowWindow = 0  # SW_HIDE
+        
+        self._subprocess = subprocess.Popen(
+            [python_exe, str(script_file)],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            startupinfo=startupinfo,
+            cwd=str(self.cwd),
+        )
+        
+        # Poll for result file
+        def poll_subprocess_result():
+            # Check if result file exists (inference complete)
+            if result_file.exists():
+                try:
+                    result = json.loads(result_file.read_text(encoding="utf-8"))
+                    
+                    if result.get("success"):
+                        # Display the result
+                        self.log_message(f"\n[dim]━━━ Sabha Activity ({result.get('roles')} roles, {result.get('tokens')} tokens) ━━━[/dim]")
+                        
+                        if result.get("final_answer"):
+                            self.log_message(f"\n[bold]👑 Raja's Answer:[/bold]\n{result['final_answer']}\n")
+                        elif result.get("error"):
+                            self.log_message(f"\n[red]Error: {result['error']}[/red]")
+                        else:
+                            self.log_message("\n[green]Query completed successfully![/green]")
+                    else:
+                        self.log_message(f"\n[red]Error: {result.get('error')}[/red]\n[dim]{result.get('traceback', '')[:500]}...[/dim]")
+                    
+                    # Cleanup temp files
+                    for f in [result_file, status_file, script_file]:
+                        try:
+                            f.unlink()
+                        except:
+                            pass
+                    
+                    self._processing_query = False
+                    try:
+                        self.query_one("#prompt-input", Input).focus()
+                    except:
+                        pass
+                    
+                except Exception:
+                    self._processing_query = False
+            else:
+                # Keep polling until result is ready
+                if self._processing_query:
+                    self.set_timer(0.5, poll_subprocess_result)
+        
+        # Start polling for result
+        self.set_timer(0.5, poll_subprocess_result)
     
     async def _async_run_sabha(self, query: str, progress: RoleProgressBar) -> None:
         """Execute Sabha council asynchronously to prevent UI freezing."""
@@ -2739,6 +3030,315 @@ class ParishadApp(App):
                 self.query_one("#user-input").focus()
             except:
                 pass
+    
+    def _native_sabha_worker(self, query: str) -> None:
+        """
+        Native Python thread worker for Sabha execution.
+        
+        CRITICAL FOR WINDOWS: This uses a regular Python thread and a thread-safe
+        queue instead of Textual's worker system which causes freezes on Windows.
+        """
+        debug_log(">>> WORKER THREAD STARTED <<<")
+        debug_log(f"Worker thread ID: {threading.current_thread().ident}")
+        debug_log(f"Query to process: {query[:100]}...")
+        
+        try:
+            # Run the blocking inference in this native thread
+            debug_log("Calling self.council.run()... (this will block)")
+            debug_log("=== INFERENCE START ===")
+            
+            trace = self.council.run(query)
+            
+            debug_log("=== INFERENCE COMPLETE ===")
+            debug_log(f"Trace received: {trace is not None}")
+            if trace:
+                debug_log(f"Trace roles: {len(trace.roles)}, tokens: {trace.total_tokens}")
+            
+            # Put result in queue (thread-safe, non-blocking)
+            debug_log("Putting result in queue...")
+            self._result_queue.put(("success", trace))
+            debug_log("Result queued successfully!")
+            
+        except Exception as e:
+            import traceback
+            tb = traceback.format_exc()
+            debug_log(f"!!! WORKER ERROR: {type(e).__name__}: {e}")
+            debug_log(f"Traceback: {tb[:500]}")
+            # Put error in queue
+            self._result_queue.put(("error", (e, tb)))
+            debug_log("Error queued.")
+        
+        debug_log(">>> WORKER THREAD EXITING <<<")
+    
+    def _poll_result_queue(self) -> None:
+        """
+        Timer callback to poll the result queue for Sabha results.
+        
+        This is called by a Textual timer and runs on the main event loop thread,
+        so it's safe to update the UI directly.
+        """
+        debug_log("POLL: Timer fired, checking queue...")
+        
+        try:
+            # Non-blocking check for results
+            result_type, result_data = self._result_queue.get_nowait()
+            
+            debug_log(f"POLL: Got result from queue! Type: {result_type}")
+            
+            # Process the result on the main thread (safe for UI updates)
+            if result_type == "success":
+                debug_log("POLL: Processing success result, calling _display_sabha_result_direct...")
+                self._display_sabha_result_direct(result_data)
+                debug_log("POLL: Display complete!")
+            else:
+                debug_log("POLL: Processing error result...")
+                error, tb = result_data
+                self.log_message(f"\n[red]Error ({type(error).__name__}): {error}[/red]\n[dim]{tb[:500]}...[/dim]")
+            
+            # Clean up
+            debug_log("POLL: Cleaning up, setting _processing_query = False")
+            self._processing_query = False
+            try:
+                self.query_one("#prompt-input", Input).focus()
+                debug_log("POLL: Input refocused!")
+            except Exception:
+                debug_log("POLL: Could not refocus input")
+            
+            debug_log("=== QUERY EXECUTION COMPLETE ===")
+            
+        except queue.Empty:
+            # No result yet, keep polling
+            if self._processing_query:
+                # Don't log every tick to avoid log spam, just every 10th
+                self.set_timer(0.1, self._poll_result_queue)
+    
+    def _display_sabha_result_direct(self, trace) -> None:
+        """Display Sabha result directly (called from main thread via poll timer)."""
+        # Update progress bar based on trace
+        try:
+            progress = self.query_one("#role-progress", RoleProgressBar)
+            for role_output in trace.roles:
+                role_name = role_output.role.lower()
+                progress.mark_complete(role_name)
+        except Exception:
+            pass  # Progress bar update is non-critical
+        
+        # Display role activity summary (collapsible style)
+        self.log_message(f"\n[dim]━━━ Sabha Activity ({len(trace.roles)} roles, {trace.total_tokens} tokens) ━━━[/dim]")
+        
+        for role_output in trace.roles:
+            role_name = role_output.role.lower()
+            info = ROLE_INFO.get(role_name, {"emoji": "❓", "name": role_name.title()})
+            status_icon = "[green]✓[/green]" if role_output.status == "success" else "[red]✗[/red]"
+            
+            # Brief summary of what the role did
+            summary = ""
+            if role_name == "darbari" and role_output.core_output:
+                task_type = role_output.core_output.get("task_type", "unknown")
+                summary = f"→ Task: {task_type}"
+            elif role_name == "majumdar" and role_output.core_output:
+                steps = role_output.core_output.get("steps", [])
+                summary = f"→ {len(steps)} step plan"
+            elif role_name == "prerak" and role_output.core_output:
+                flags = role_output.core_output.get("flags", [])
+                if not flags:
+                    summary = "→ No issues"
+                else:
+                    summary = f"→ {len(flags)} issue(s)"
+            elif role_name == "raja" and role_output.core_output:
+                conf = role_output.core_output.get("confidence", 0)
+                summary = f"→ Confidence: {int(conf*100)}%"
+            
+            # Show model used
+            model_str = ""
+            if role_output.metadata and role_output.metadata.model_id:
+                mid = role_output.metadata.model_id
+                if "/" in mid:
+                    mid = mid.split("/")[-1]
+                if mid.endswith(".gguf"):
+                    mid = mid[:-5]
+                model_str = f"[dim]({mid})[/dim]"
+
+            if role_output.status == "error":
+                err_msg = role_output.error or "Unknown error"
+                summary = f"[red]{err_msg}[/red]"
+
+            self.log_message(f"  {info['emoji']} {info['name']} {model_str}: {status_icon} {summary}")
+        
+        self.log_message(f"[dim]━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[/dim]\n")
+        
+        # Check for file generation
+        for role_output in trace.roles:
+            if role_output.core_output and role_output.core_output.get("target_file"):
+                fpath = role_output.core_output.get("target_file")
+                self.log_message(f"\n[bold blue]📁 File Generated:[/bold blue] {fpath}")
+
+        # Display the final answer from Raja
+        if trace.final_answer:
+            answer = trace.final_answer.final_answer
+            self.log_message(f"\n[bold]👑 Raja's Answer:[/bold]\n{answer}\n")
+        elif trace.error:
+            self.log_message(f"\n[red]Error: {trace.error}[/red]")
+        else:
+            file_gen = any(r.core_output and r.core_output.get("target_file") for r in trace.roles)
+            if not file_gen:
+                self.log_message("\n[yellow]No answer generated[/yellow]")
+    
+    def _run_sabha_thread_worker(self, query: str) -> None:
+        """
+        Execute Sabha council in a dedicated thread worker.
+        
+        CRITICAL FOR WINDOWS: This method runs in a real OS thread (not an asyncio executor)
+        which prevents the TUI from freezing during blocking llama-cpp inference.
+        
+        UI updates are sent via non-blocking post_message to prevent deadlock.
+        """
+        if self._processing_query:
+            return
+        
+        self._processing_query = True
+        
+        try:
+            # Run the blocking inference in this thread
+            # This won't freeze the UI because it's a real thread worker
+            trace = self.council.run(query)
+            
+            # Send non-blocking message with result (won't deadlock!)
+            self.post_message(self.SabhaResultReady(trace))
+            
+        except Exception as e:
+            import traceback
+            tb = traceback.format_exc()
+            # Send non-blocking error message
+            self.post_message(self.SabhaError(e, tb))
+        finally:
+            self._processing_query = False
+            # Send non-blocking completion message
+            self.post_message(self.WorkerComplete("sabha"))
+    
+    def on_parishad_app_log_message(self, message: LogMessage) -> None:
+        """Handle non-blocking log messages from worker threads."""
+        self.log_message(message.text)
+    
+    def on_parishad_app_sabha_result_ready(self, message: SabhaResultReady) -> None:
+        """Handle Sabha result from worker thread (non-blocking)."""
+        trace = message.trace
+        
+        # Update progress bar based on trace
+        try:
+            progress = self.query_one("#role-progress", RoleProgressBar)
+            for role_output in trace.roles:
+                role_name = role_output.role.lower()
+                progress.mark_complete(role_name)
+        except Exception:
+            pass  # Progress bar update is non-critical
+        
+        # Display role activity summary (collapsible style)
+        self.log_message(f"\n[dim]━━━ Sabha Activity ({len(trace.roles)} roles, {trace.total_tokens} tokens) ━━━[/dim]")
+        
+        for role_output in trace.roles:
+            role_name = role_output.role.lower()
+            info = ROLE_INFO.get(role_name, {"emoji": "❓", "name": role_name.title()})
+            status_icon = "[green]✓[/green]" if role_output.status == "success" else "[red]✗[/red]"
+            
+            # Brief summary of what the role did
+            summary = ""
+            if role_name == "darbari" and role_output.core_output:
+                task_type = role_output.core_output.get("task_type", "unknown")
+                summary = f"→ Task: {task_type}"
+            elif role_name == "majumdar" and role_output.core_output:
+                steps = role_output.core_output.get("steps", [])
+                summary = f"→ {len(steps)} step plan"
+            elif role_name == "prerak" and role_output.core_output:
+                flags = role_output.core_output.get("flags", [])
+                if not flags:
+                    summary = "→ No issues"
+                else:
+                    summary = f"→ {len(flags)} issue(s)"
+            elif role_name == "raja" and role_output.core_output:
+                conf = role_output.core_output.get("confidence", 0)
+                summary = f"→ Confidence: {int(conf*100)}%"
+            
+            # Show model used
+            model_str = ""
+            if role_output.metadata and role_output.metadata.model_id:
+                mid = role_output.metadata.model_id
+                # Strip path
+                if "/" in mid:
+                    mid = mid.split("/")[-1]
+                # Strip extension (optional but cleaner)
+                if mid.endswith(".gguf"):
+                    mid = mid[:-5]
+                model_str = f"[dim]({mid})[/dim]"
+
+            if role_output.status == "error":
+                err_msg = role_output.error or "Unknown error"
+                # Show full error
+                summary = f"[red]{err_msg}[/red]"
+
+            self.log_message(f"  {info['emoji']} {info['name']} {model_str}: {status_icon} {summary}")
+        
+        self.log_message(f"[dim]━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[/dim]\n")
+        
+        # Check for silent file generation (common source of confusion)
+        for role_output in trace.roles:
+            if role_output.core_output and role_output.core_output.get("target_file"):
+                fpath = role_output.core_output.get("target_file")
+                self.log_message(f"\n[bold blue]📁 File Generated:[/bold blue] {fpath}")
+
+        # Display the final answer from Raja
+        if trace.final_answer:
+            answer = trace.final_answer.final_answer
+            self.log_message(f"\n[bold]👑 Raja's Answer:[/bold]\n{answer}\n")
+        elif trace.error:
+            self.log_message(f"\n[red]Error: {trace.error}[/red]")
+        else:
+            # Check if we generated a file but no text answer
+            file_gen = any(r.core_output and r.core_output.get("target_file") for r in trace.roles)
+            if not file_gen:
+                self.log_message("\n[yellow]No answer generated[/yellow]")
+    
+    def on_parishad_app_sabha_error(self, message: SabhaError) -> None:
+        """Handle Sabha error from worker thread (non-blocking)."""
+        self.log_message(f"\n[red]Error ({type(message.error).__name__}): {message.error}[/red]\n[dim]{message.traceback_str[:500]}...[/dim]")
+    
+    def on_parishad_app_worker_complete(self, message: WorkerComplete) -> None:
+        """Handle worker completion - refocus input."""
+        try:
+            self.query_one("#prompt-input", Input).focus()
+        except Exception:
+            pass
+    
+    def on_parishad_app_council_ready(self, message: CouncilReady) -> None:
+        """Handle council initialization completion (non-blocking)."""
+        if message.success:
+            self.log_message(
+                f"[green]✅ Sabha council ready![/green]\n"
+                f"[dim]Models loaded from profile '{message.profile}'[/dim]\n"
+                f"[dim]You can now start asking questions.[/dim]\n"
+            )
+        else:
+            self.log_message(
+                f"[red]✗ Error loading Sabha council:[/red]\n"
+                f"[dim]{message.error_msg}[/dim]\n"
+            )
+    
+    # Keep these for backward compatibility but they are no longer used for thread workers
+    def _display_sabha_result(self, trace) -> None:
+        """Display Sabha result on main thread (DEPRECATED - use message handlers now)."""
+        # Delegate to message handler
+        self.on_parishad_app_sabha_result_ready(self.SabhaResultReady(trace))
+    
+    def _display_sabha_error(self, error: Exception, tb: str) -> None:
+        """Display Sabha error on main thread (DEPRECATED - use message handlers now)."""
+        self.on_parishad_app_sabha_error(self.SabhaError(error, tb))
+    
+    def _refocus_input(self) -> None:
+        """Refocus input widget after query completion (DEPRECATED - use message handlers now)."""
+        try:
+            self.query_one("#prompt-input", Input).focus()
+        except Exception:
+            pass
     
     def handle_command(self, parsed: ParsedInput) -> None:
         """Handle slash commands with ParsedInput."""
