@@ -1,1 +1,0 @@
-The atomic number of an element is a unique identifier for that element, based on its position in the periodic table. It is typically denoted by the symbol 'Z' or 'Zr' and is an integer from 1 to 118, corresponding to the element's position in the periodic table.

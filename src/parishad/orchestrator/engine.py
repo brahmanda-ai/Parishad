@@ -656,23 +656,47 @@ class ParishadEngine:
              content = output.core_output.get("content")
              
              if target_file and content:
-                 try:
-                     # Use FS tool to write
-                     logger.info(f"Writing file {target_file} via Sainik")
-                     
-                     # Simple content write
-                     result = self.fs_tool.run("write", path=target_file, content=content)
-                     
-                     if not result.success:
-                         logger.error(f"Failed to write file {target_file}: {result.error}")
-                         output.error = f"File write failed: {result.error}"
-                         # Optionally mark partial success?
-                     else:
-                         logger.info(f"Successfully wrote {target_file}")
+                 # Smart filter: Only write files if user explicitly requested it
+                 # Check if the query contains file-related keywords
+                 query_lower = ctx.user_query.lower()
+                 file_keywords = [
+                     'create', 'write', 'save', 'generate', 'make', 'update', 'modify',
+                     'file', 'script', '.py', '.txt', '.md', '.json', '.yaml', '.yml',
+                     'to file', 'in file', 'save to', 'write to'
+                 ]
+                 
+                 # Check if any file keyword is in the query
+                 should_write_file = any(keyword in query_lower for keyword in file_keywords)
+                 
+                 # Also check for specific file path mentions (e.g., "src/main.py")
+                 import re
+                 file_path_pattern = r'\b[\w/\\]+\.\w+\b'
+                 if re.search(file_path_pattern, ctx.user_query):
+                     should_write_file = True
+                 
+                 if should_write_file:
+                     try:
+                         # Use FS tool to write
+                         logger.info(f"Writing file {target_file} via Sainik")
                          
-                 except Exception as e:
-                     logger.error(f"Error handling file write for {target_file}: {e}")
-                     output.error = f"File write exception: {str(e)}"
+                         # Simple content write
+                         result = self.fs_tool.run("write", path=target_file, content=content)
+                         
+                         if not result.success:
+                             logger.error(f"Failed to write file {target_file}: {result.error}")
+                             output.error = f"File write failed: {result.error}"
+                             # Optionally mark partial success?
+                         else:
+                             logger.info(f"Successfully wrote {target_file}")
+                             
+                     except Exception as e:
+                         logger.error(f"Error handling file write for {target_file}: {e}")
+                         output.error = f"File write exception: {str(e)}"
+                 else:
+                     logger.info(f"Skipping file write for {target_file} - no file creation keyword detected in query")
+                     # Clear the target_file from output to prevent confusion
+                     if "target_file" in output.core_output:
+                         output.core_output["target_file"] = None
 
         # Phase 13: General Tool Execution (Agentic)
         if role_name == "sainik" and output.status == "success":
@@ -884,6 +908,9 @@ class ParishadEngine:
         if self.trace_dir:
             self._save_trace(trace)
         
+        # Save final answer to output.json in workspace root
+        self._save_output_json(trace)
+        
         logger.info(
             f"Parishad run complete: {ctx.query_id} "
             f"(tokens: {ctx.tokens_used}/{budget}, success: {success})"
@@ -965,6 +992,31 @@ class ParishadEngine:
             f.write(trace.to_json())
         
         logger.debug(f"Trace saved: {filepath}")
+    
+    def _save_output_json(self, trace: Trace) -> None:
+        """Save final answer to output.json in workspace root."""
+        try:
+            import json
+            from pathlib import Path
+            
+            # Get the workspace root (current working directory)
+            output_path = Path.cwd() / "output.json"
+            
+            # Extract the final answer text
+            if trace.final_answer:
+                output_content = trace.final_answer.final_answer
+            else:
+                output_content = "No answer generated"
+            
+            # Write the output to output.json
+            with open(output_path, "w", encoding="utf-8") as f:
+                json.dump(output_content, f, indent=2, ensure_ascii=False)
+            
+            logger.debug(f"Output saved to: {output_path}")
+            
+        except Exception as e:
+            logger.warning(f"Failed to save output.json: {e}")
+
 
 
 class Parishad:

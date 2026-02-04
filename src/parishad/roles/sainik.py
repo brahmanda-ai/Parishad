@@ -52,8 +52,12 @@ You must ALWAYS respond with a valid JSON object in the following format:
 Guidelines:
 - If writing code, put the COMPLETE runnable code in "content".
 - If writing text, put the clear explanation in "content".
-- If the user asked to change/create a file, you MUST specify "target_file".
-- IMPORTANT: Do NOT create files unless explicitly asked! For general questions/explanations, keep "target_file": null.
+- **CRITICAL: ONLY set "target_file" if the user EXPLICITLY asks to create/save/write a file with a specific filename.**
+- Examples where you SHOULD set target_file: "create a script called math_utils.py", "save this to config.json", "write code in src/main.py"
+- Examples where you should NOT set target_file: "what is 2+2", "write code to add numbers", "how do I calculate X", "solve this math problem", "explain Y"
+- For math problems, explanations, and general questions: Put the answer in "content" and set "target_file": null
+- NEVER write to docs/ directory unless explicitly instructed to do so by the user.
+- NEVER create files just because you're writing code - only if the user wants to SAVE it to a file.
 - "target_file" should be relative to the current directory (e.g., "src/main.py").
 - If "target_file" is a text/markdown/json file (not executable code), put the RAW content in "content". DO NOT write a Python script to create it.
 - If you need to Use a tool, add it to `tool_calls`. Available tools will be listed in the prompt.

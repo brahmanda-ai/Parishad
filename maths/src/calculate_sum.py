@@ -1,1 +1,0 @@
-def calculate_sum(a, b):
