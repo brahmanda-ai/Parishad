@@ -9,10 +9,11 @@ from typing import Literal, List, Dict
 class ModelEntry:
     """A recommended model."""
     name: str  # Display name
-    backend: Literal["llama_cpp", "ollama", "lm_studio"] # Defaulting to GGUF-compatible backends
+    backend: Literal["llama_cpp", "mlx", "transformers"] # Format-aware backends: llama_cpp for GGUF, mlx for MLX, transformers for Safetensors
     model_id: str  # The ID used by the backend or the lookup key
     min_ram_gb: int
     description: str
+    format: Literal["gguf", "mlx", "safetensors"] = "gguf"  # Model format
     hw_tags: List[str] = field(default_factory=list) # e.g. ["cpu", "cuda", "mlx", "metal"]
     download_info: Dict[str, str] = field(default_factory=dict) # Hints for downloader: repo_id, filename
 
@@ -54,65 +55,103 @@ SABHAS = {
 
 # --- MODEL RECOMMENDATIONS ---
 
-# Note: We prioritize GGUF (llama_cpp) for local ease (no gated repos, lower VRAM reqs).
-# 'model_id' here acts as the 'spec' for ModelManager.download()
+# Note: We now support three formats: GGUF (llama_cpp), MLX (mlx backend for Mac), and Safetensors (transformers)
+# 'model_id' acts as the 'spec' for ModelManager.download()
 
 MODELS = {
     "entry": [
+        # GGUF Models - Efficient quantized models for CPU/GPU
         ModelEntry(
-            name="Qwen 2.5 (0.5B)", backend="llama_cpp", model_id="qwen2.5:0.5b",
-            min_ram_gb=2, description="Ultra-lightweight. Good for basic testing.", 
-            hw_tags=["cpu", "cuda", "mlx"]
+            name="Qwen 2.5 (0.5B) GGUF", backend="llama_cpp", model_id="Qwen/Qwen2.5-0.5B-Instruct-GGUF",
+            min_ram_gb=2, description="Ultra-lightweight GGUF. Good for basic testing.", 
+            format="gguf", hw_tags=["cpu", "cuda", "metal"]
         ),
         ModelEntry(
-            name="Llama 3.2 (1B)", backend="llama_cpp", model_id="llama3.2:1b",
-            min_ram_gb=4, description="Meta's smallest instruction model.", 
-            hw_tags=["cpu", "cuda", "mlx"]
+            name="Llama 3.2 (1B) GGUF", backend="llama_cpp", model_id="bartowski/Llama-3.2-1B-Instruct-GGUF",
+            min_ram_gb=4, description="Meta's smallest instruction model in GGUF.", 
+            format="gguf", hw_tags=["cpu", "cuda", "metal"]
+        ),
+        # MLX Models - Optimized for Apple Silicon
+        ModelEntry(
+            name="Qwen 2.5 (0.5B) MLX", backend="mlx", model_id="mlx-community/Qwen2.5-0.5B-Instruct-4bit",
+            min_ram_gb=2, description="Ultra-lightweight MLX for Mac. Blazing fast.", 
+            format="mlx", hw_tags=["mlx", "mac"]
         ),
         ModelEntry(
-            name="Phi-3.5 Mini (3.8B)", backend="llama_cpp", model_id="phi3:mini", # Using phi3:mini as close approx or update downloader
-            min_ram_gb=8, description="High capability for size. Strong reasoning.", 
-            hw_tags=["cpu", "cuda", "mlx"],
-            download_info={"repo": "microsoft/Phi-3-mini-4k-instruct-gguf", "file": "Phi-3-mini-4k-instruct-q4.gguf"}
+            name="Llama 3.2 (1B) MLX", backend="mlx", model_id="mlx-community/Llama-3.2-1B-Instruct-4bit",
+            min_ram_gb=4, description="Meta's smallest model optimized for Apple Silicon.", 
+            format="mlx", hw_tags=["mlx", "mac"]
         ),
+        # Safetensors - Full precision models
         ModelEntry(
-            name="Gemma 2 (2B)", backend="llama_cpp", model_id="gemma2:2b",
-            min_ram_gb=6, description="Google's lightweight efficient model.", 
-            hw_tags=["cpu", "cuda", "mlx"]
-        ),
-        ModelEntry(
-            name="Qwen 2.5 (1.5B)", backend="llama_cpp", model_id="qwen2.5:1.5b",
-            min_ram_gb=4, description="Balanced small model.", 
-            hw_tags=["cpu", "cuda", "mlx"]
+            name="Qwen 2.5 (0.5B) FP16", backend="transformers", model_id="Qwen/Qwen2.5-0.5B-Instruct",
+            min_ram_gb=4, description="Full precision tiny model. Best quality.", 
+            format="safetensors", hw_tags=["cuda", "cpu"]
         ),
     ],
     "mid": [
+        # GGUF Models
         ModelEntry(
-            name="Qwen 2.5 (7B)", backend="llama_cpp", model_id="qwen2.5:7b",
-            min_ram_gb=16, description="Excellent all-rounder. Best in class 7B.", 
-            hw_tags=["cuda", "mlx"]
+            name="Qwen 2.5 (7B) GGUF", backend="llama_cpp", model_id="Qwen/Qwen2.5-7B-Instruct-GGUF",
+            min_ram_gb=16, description="Excellent all-rounder GGUF. Best in class 7B.", 
+            format="gguf", hw_tags=["cuda", "metal", "cpu"]
         ),
         ModelEntry(
-            name="Llama 3.1 (8B)", backend="llama_cpp", model_id="llama3.1:8b",
-            min_ram_gb=16, description="Meta's state-of-the-art 8B model.", 
-            hw_tags=["cuda", "metal"]
+            name="Llama 3.1 (8B) GGUF", backend="llama_cpp", model_id="bartowski/Meta-Llama-3.1-8B-Instruct-GGUF",
+            min_ram_gb=16, description="Meta's state-of-the-art 8B GGUF.", 
+            format="gguf", hw_tags=["cuda", "metal"]
         ),
         ModelEntry(
-            name="Mistral 7B (v0.3)", backend="llama_cpp", model_id="mistral:7b",
-            min_ram_gb=16, description="Reliable workhorse from Mistral AI.", 
-            hw_tags=["cuda", "mlx"]
+            name="Mistral 7B (v0.3) GGUF", backend="llama_cpp", model_id="bartowski/Mistral-7B-Instruct-v0.3-GGUF",
+            min_ram_gb=16, description="Reliable workhorse GGUF from Mistral AI.", 
+            format="gguf", hw_tags=["cuda", "metal"]
+        ),
+        # MLX Models
+        ModelEntry(
+            name="Qwen 2.5 (7B) MLX", backend="mlx", model_id="mlx-community/Qwen2.5-7B-Instruct-4bit",
+            min_ram_gb=16, description="Excellent MLX reasoning model for Mac.", 
+            format="mlx", hw_tags=["mlx", "mac"]
+        ),
+        ModelEntry(
+            name="Llama 3.1 (8B) MLX", backend="mlx", model_id="mlx-community/Meta-Llama-3.1-8B-Instruct-4bit",
+            min_ram_gb=16, description="Powerful MLX model optimized for Apple Silicon.", 
+            format="mlx", hw_tags=["mlx", "mac"]
+        ),
+        # Safetensors Models
+        ModelEntry(
+            name="Qwen 2.5 (7B) FP16", backend="transformers", model_id="Qwen/Qwen2.5-7B-Instruct",
+            min_ram_gb=32, description="Full precision 7B. Best quality, needs more VRAM.", 
+            format="safetensors", hw_tags=["cuda"]
         ),
     ],
     "high": [
+        # GGUF Models
         ModelEntry(
-            name="Qwen 2.5 (14B)", backend="llama_cpp", model_id="Qwen/Qwen2.5-14B-Instruct-GGUF/qwen2.5-14b-instruct-q4_k_m.gguf",
-            min_ram_gb=28, description="Heavyweight reasoning. Great for coding.", 
-            hw_tags=["cuda", "mlx"]
+            name="Qwen 2.5 (14B) GGUF", backend="llama_cpp", model_id="Qwen/Qwen2.5-14B-Instruct-GGUF",
+            min_ram_gb=28, description="Heavyweight reasoning GGUF. Great for coding.", 
+            format="gguf", hw_tags=["cuda", "metal"]
         ),
         ModelEntry(
-            name="Mixtral 8x7B", backend="llama_cpp", model_id="TheBloke/Mixtral-8x7B-Instruct-v0.1-GGUF/mixtral-8x7b-instruct-v0.1.Q4_K_M.gguf",
-            min_ram_gb=26, description="Top-tier sparse MoE. Very fast.", 
-            hw_tags=["cuda", "metal"]
+            name="Mixtral 8x7B GGUF", backend="llama_cpp", model_id="TheBloke/Mixtral-8x7B-Instruct-v0.1-GGUF",
+            min_ram_gb=26, description="Top-tier sparse MoE GGUF. Very fast.", 
+            format="gguf", hw_tags=["cuda", "metal"]
+        ),
+        # MLX Models
+        ModelEntry(
+            name="Qwen 2.5 (14B) MLX", backend="mlx", model_id="mlx-community/Qwen2.5-14B-Instruct-4bit",
+            min_ram_gb=28, description="Large MLX reasoning model for Mac Studio.", 
+            format="mlx", hw_tags=["mlx", "mac"]
+        ),
+        ModelEntry(
+            name="Llama 3.1 (70B) MLX", backend="mlx", model_id="mlx-community/Meta-Llama-3.1-70B-Instruct-4bit",
+            min_ram_gb=64, description="Flagship MLX model for Mac Studio/Pro with lots of RAM.", 
+            format="mlx", hw_tags=["mlx", "mac"]
+        ),
+        # Safetensors Models
+        ModelEntry(
+            name="Qwen 2.5 (14B) FP16", backend="transformers", model_id="Qwen/Qwen2.5-14B-Instruct",
+            min_ram_gb=56, description="Full precision 14B. Best quality for high-end GPUs.", 
+            format="safetensors", hw_tags=["cuda"]
         ),
     ]
 }

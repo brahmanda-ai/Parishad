@@ -2,11 +2,13 @@
 Model Download Manager for Parishad.
 
 Provides unified interface for downloading and managing LLM models from:
-- HuggingFace Hub (GGUF files)
-- Ollama (via ollama pull)
-- LM Studio (symlinks to existing models)
+- GGUF: Quantized GGUF files from HuggingFace (llama.cpp compatible)
+- MLX: MLX-optimized models for Apple Silicon (M1/M2/M3/M4)
+- Safetensors: Full-precision safetensors models from HuggingFace
+- Ollama: Legacy support via ollama pull
+- LM Studio: Legacy support via symlinks to existing models
 
-Models are stored in a central directory for easy management.
+Models are stored in format-specific directories for easy management.
 """
 
 from __future__ import annotations
@@ -158,19 +160,21 @@ LMSTUDIO_ALT_PATHS = [
 
 class ModelSource(Enum):
     """Source of the model."""
-    HUGGINGFACE = "huggingface"
-    OLLAMA = "ollama"
-    LMSTUDIO = "lmstudio"
+    GGUF = "gguf"  # GGUF quantized models (HuggingFace)
+    MLX = "mlx"  # MLX optimized models for Apple Silicon
+    SAFETENSORS = "safetensors"  # Safetensors format models
+    OLLAMA = "ollama"  # Legacy: Ollama models
     LOCAL = "local"
     UNKNOWN = "unknown"
 
 
 class ModelFormat(Enum):
     """Model file format."""
-    GGUF = "gguf"
-    SAFETENSORS = "safetensors"
+    GGUF = "gguf"  # GGUF quantized format
+    MLX = "mlx"  # MLX optimized format for Mac
+    SAFETENSORS = "safetensors"  # Safetensors format
     PYTORCH = "pytorch"
-    OLLAMA = "ollama"
+    OLLAMA = "ollama"  # Legacy
     UNKNOWN = "unknown"
 
 
@@ -498,7 +502,7 @@ class HuggingFaceDownloader:
         
         return ModelInfo(
             name=model_name,
-            source=ModelSource.HUGGINGFACE,
+            source=ModelSource.GGUF,  # Using GGUF format (downloaded from HuggingFace)
             format=ModelFormat.GGUF,
             path=local_path,
             size_bytes=local_path.stat().st_size,
@@ -954,7 +958,7 @@ class LMStudioManager:
         
         return ModelInfo(
             name=f"lmstudio:{safe_name}",
-            source=ModelSource.LMSTUDIO,
+            source=ModelSource.GGUF,  # LM Studio uses GGUF format
             format=ModelFormat.GGUF,
             path=link_path,
             size_bytes=source_path.stat().st_size,
@@ -982,6 +986,177 @@ class LMStudioManager:
                 return quant.upper()
         
         return None
+
+
+# =============================================================================
+# MLX Models Downloader
+# =============================================================================
+
+
+class MLXDownloader:
+    """
+    Download MLX-optimized models from HuggingFace mlx-community.
+    
+    MLX models are optimized for Apple Silicon and provide the fastest
+    inference on M1/M2/M3/M4 Macs.
+    """
+    
+    def __init__(self, model_dir: Path):
+        """
+        Initialize MLX downloader.
+        
+        Args:
+            model_dir: Directory to store downloaded models
+        """
+        self.model_dir = model_dir
+        self.mlx_dir = model_dir / "mlx"
+        self.mlx_dir.mkdir(parents=True, exist_ok=True)
+    
+    def download(
+        self,
+        model_spec: str,
+        progress_callback: Optional[ProgressCallback] = None,
+    ) -> ModelInfo:
+        """
+        Download an MLX model from HuggingFace.
+        
+        Args:
+            model_spec: Model repo ID (e.g., "mlx-community/Llama-3.2-1B-Instruct-4bit")
+            progress_callback: Callback for progress updates
+            
+        Returns:
+            ModelInfo for the downloaded model
+        """
+        try:
+            from huggingface_hub import snapshot_download
+        except ImportError:
+            raise ImportError(
+                "huggingface_hub is required for downloading MLX models. "
+                "Install with: pip install huggingface_hub"
+            )
+        
+        logger.info(f"Downloading MLX model: {model_spec}")
+        
+        # Parse model spec
+        if "/" not in model_spec:
+            # Assume mlx-community if no org specified
+            model_spec = f"mlx-community/{model_spec}"
+        
+        # Create model-specific directory
+        model_name = model_spec.replace("/", "_")
+        model_path = self.mlx_dir / model_name
+        
+        # Download entire model directory (MLX models need config files)
+        try:
+            local_dir = snapshot_download(
+                repo_id=model_spec,
+                local_dir=model_path,
+                local_dir_use_symlinks=False,
+            )
+            
+            model_path = Path(local_dir)
+            
+            # Create ModelInfo
+            size = sum(f.stat().st_size for f in model_path.rglob("*") if f.is_file())
+            
+            return ModelInfo(
+                name=model_spec,
+                source=ModelSource.MLX,
+                format=ModelFormat.MLX,
+                path=model_path,
+                size_bytes=size,
+                downloaded_at=datetime.now(),
+                quantization="4bit",  # Most MLX models are 4-bit
+                metadata={"repo_id": model_spec},
+            )
+            
+        except Exception as e:
+            logger.error(f"Failed to download MLX model: {e}")
+            raise
+
+
+# =============================================================================
+# Safetensors Models Downloader
+# =============================================================================
+
+
+class SafetensorsDownloader:
+    """
+    Download full-precision safetensors models from HuggingFace.
+    
+    Safetensors format provides secure, fast loading of full precision models.
+    These models require more resources but provide the best quality.
+    """
+    
+    def __init__(self, model_dir: Path):
+        """
+        Initialize Safetensors downloader.
+        
+        Args:
+            model_dir: Directory to store downloaded models
+        """
+        self.model_dir = model_dir
+        self.safetensors_dir = model_dir / "safetensors"
+        self.safetensors_dir.mkdir(parents=True, exist_ok=True)
+    
+    def download(
+        self,
+        model_spec: str,
+        progress_callback: Optional[ProgressCallback] = None,
+    ) -> ModelInfo:
+        """
+        Download a safetensors model from HuggingFace.
+        
+        Args:
+            model_spec: Model repo ID (e.g., "meta-llama/Llama-3.2-1B-Instruct")
+            progress_callback: Callback for progress updates
+            
+        Returns:
+            ModelInfo for the downloaded model
+        """
+        try:
+            from huggingface_hub import snapshot_download
+        except ImportError:
+            raise ImportError(
+                "huggingface_hub is required for downloading models. "
+                "Install with: pip install huggingface_hub"
+            )
+        
+        logger.info(f"Downloading Safetensors model: {model_spec}")
+        
+        # Create model-specific directory
+        model_name = model_spec.replace("/", "_")
+        model_path = self.safetensors_dir / model_name
+        
+        # Download entire model directory (need config + safetensors files)
+        try:
+            # Download safetensors files only (not pytorch bins)
+            local_dir = snapshot_download(
+                repo_id=model_spec,
+                local_dir=model_path,
+                local_dir_use_symlinks=False,
+                allow_patterns=["*.safetensors", "*.json", "tokenizer*", "*.txt"],
+            )
+            
+            model_path = Path(local_dir)
+            
+            # Create ModelInfo
+            size = sum(f.stat().st_size for f in model_path.rglob("*.safetensors"))
+            
+            return ModelInfo(
+                name=model_spec,
+                source=ModelSource.SAFETENSORS,
+                format=ModelFormat.SAFETENSORS,
+                path=model_path,
+                size_bytes=size,
+                downloaded_at=datetime.now(),
+                quantization="FP16",  # Most safetensors are FP16
+                metadata={"repo_id": model_spec},
+            )
+            
+        except Exception as e:
+            logger.error(f"Failed to download Safetensors model: {e}")
+            raise
 
 
 # =============================================================================
@@ -1028,11 +1203,13 @@ class ModelManager:
         self.model_dir = Path(model_dir) if model_dir else DEFAULT_MODEL_DIR
         self.model_dir.mkdir(parents=True, exist_ok=True)
         
-        # Initialize components
+        # Initialize components for all formats
         self.registry = ModelRegistry(self.model_dir)
-        self.huggingface = HuggingFaceDownloader(self.model_dir)
-        self.ollama = OllamaManager(self.model_dir)
-        self.lmstudio = LMStudioManager(self.model_dir)
+        self.huggingface = HuggingFaceDownloader(self.model_dir)  # GGUF models
+        self.mlx = MLXDownloader(self.model_dir)  # MLX models for Mac
+        self.safetensors = SafetensorsDownloader(self.model_dir)  # Full precision models
+        self.ollama = OllamaManager(self.model_dir)  # Legacy Ollama support
+        self.lmstudio = LMStudioManager(self.model_dir)  # Legacy LM Studio support
         
         logger.info(f"Model manager initialized: {self.model_dir}")
     
@@ -1050,8 +1227,8 @@ class ModelManager:
         
         Args:
             model_spec: Model specification (name, path, or URL)
-            source: Source to use ("huggingface", "ollama", "lmstudio", or "auto")
-            quantization: Preferred quantization (for HuggingFace)
+            source: Source to use ("gguf", "mlx", "safetensors", "huggingface", "ollama", "lmstudio", or "auto")
+            quantization: Preferred quantization (for GGUF/HuggingFace)
             progress_callback: Progress callback function
             
         Returns:
@@ -1070,12 +1247,16 @@ class ModelManager:
             return existing
         
         # Define fallback order based on primary source
-        if source == "huggingface":
-            sources_to_try = ["huggingface", "ollama", "lmstudio"]
+        if source in ("gguf", "huggingface"):
+            sources_to_try = ["gguf", "ollama"]
+        elif source == "mlx":
+            sources_to_try = ["mlx"]  # MLX models are Mac-specific, no fallback
+        elif source == "safetensors":
+            sources_to_try = ["safetensors"]  # Safetensors are specific, no fallback
         elif source == "ollama":
-            sources_to_try = ["ollama", "huggingface", "lmstudio"]
+            sources_to_try = ["ollama", "gguf"]
         elif source == "lmstudio":
-            sources_to_try = ["lmstudio", "huggingface", "ollama"]
+            sources_to_try = ["lmstudio", "gguf"]
         else:
             sources_to_try = [source]
         
@@ -1109,8 +1290,12 @@ class ModelManager:
         progress_callback: Optional[ProgressCallback],
     ) -> ModelInfo:
         """Download from a specific source."""
-        if source == "huggingface":
+        if source in ("gguf", "huggingface"):
             return self.huggingface.download(model_spec, quantization, progress_callback)
+        elif source == "mlx":
+            return self.mlx.download(model_spec, progress_callback)
+        elif source == "safetensors":
+            return self.safetensors.download(model_spec, progress_callback)
         elif source == "ollama":
             # Convert model spec to Ollama format if needed
             ollama_name = self._convert_to_ollama_name(model_spec)
@@ -1143,26 +1328,41 @@ class ModelManager:
         """Auto-detect the source for a model specification."""
         # Check shortcuts first
         if model_spec in self.huggingface.POPULAR_MODELS:
-            return "huggingface"
+            return "gguf"
         
         # Check prefixes
-        if model_spec.startswith("hf:") or model_spec.startswith("huggingface:"):
-            return "huggingface"
+        if model_spec.startswith("gguf:") or model_spec.startswith("hf:") or model_spec.startswith("huggingface:"):
+            return "gguf"
+        if model_spec.startswith("mlx:") or "mlx-community" in model_spec:
+            return "mlx"
+        if model_spec.startswith("safetensors:") or model_spec.startswith("st:"):
+            return "safetensors"
         if model_spec.startswith("ollama:"):
             return "ollama"
         if model_spec.startswith("lmstudio:"):
             return "lmstudio"
         
+        # Auto-detect based on model name patterns
+        if "mlx-community" in model_spec or "-mlx" in model_spec.lower():
+            return "mlx"
+        
         # Check if it looks like a HuggingFace repo
-        if "/" in model_spec and ".gguf" in model_spec.lower():
-            return "huggingface"
+        if "/" in model_spec:
+            # If it has GGUF in the name, it's GGUF
+            if "gguf" in model_spec.lower():
+                return "gguf"
+            # If it's from known full-precision sources, use safetensors
+            if any(org in model_spec.lower() for org in ["meta-llama", "mistralai", "google", "microsoft", "qwen", "deepseek-ai", "bigcode"]):
+                # Check if it looks like a full model repo (not GGUF)
+                if not any(x in model_spec.lower() for x in ["gguf", "gptq", "awq"]):
+                    return "safetensors"
         
         # Check if Ollama has it
         if self.ollama.is_available():
             return "ollama"
         
-        # Default to HuggingFace
-        return "huggingface"
+        # Default to GGUF (most compatible)
+        return "gguf"
     
     def list_models(self, source: Optional[str] = None) -> list[ModelInfo]:
         """
@@ -1362,7 +1562,7 @@ class ModelManager:
             if not self.registry.get(name):
                 model = ModelInfo(
                     name=name,
-                    source=ModelSource.LMSTUDIO,
+                    source=ModelSource.GGUF,  # LM Studio uses GGUF format
                     format=ModelFormat.GGUF,
                     path=lms_model["path"],
                     size_bytes=lms_model["size_bytes"],

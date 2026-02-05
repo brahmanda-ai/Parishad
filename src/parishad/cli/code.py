@@ -84,7 +84,7 @@ def load_parishad_config() -> Optional[ParishadConfig]:
 class ParishadConfig:
     """Central configuration for Parishad TUI."""
     sabha: Optional[str] = None          # "laghu" | "madhyam" | "maha"
-    backend: Optional[str] = None        # "ollama" | "huggingface" | "lmstudio"
+    backend: Optional[str] = None        # "llama_cpp" | "mlx" | "transformers" | "ollama"
     model: Optional[str] = None          # model id/name
     cwd: str = ""       # working directory (optional)
     setup_complete: bool = False
@@ -645,7 +645,7 @@ class ModelInfo:
     shortcut: str
     size_gb: float
     description: str
-    source: str  # huggingface, ollama, lmstudio
+    source: str  # gguf, mlx, safetensors (model format)
     quantization: str = "Q4_K_M"
     distributor: str = ""
     params: str = ""
@@ -656,7 +656,7 @@ def load_model_catalog() -> dict:
     """Load model catalog from JSON file."""
     if MODELS_JSON_PATH.exists():
         try:
-            with open(MODELS_JSON_PATH) as f:
+            with open(MODELS_JSON_PATH, encoding='utf-8') as f:
                 data = json.load(f)
             
             catalog = {}
@@ -681,15 +681,15 @@ def load_model_catalog() -> dict:
     
     # Fallback to minimal catalog
     return {
-        "ollama": [
-            ModelInfo("Llama 3.2 3B", "llama3.2:3b", 2.0, "Efficient and fast", "ollama", "Q4_K_M", "Meta", "3B"),
-            ModelInfo("Qwen 2.5 7B", "qwen2.5:7b", 4.5, "Excellent reasoning", "ollama", "Q4_K_M", "Alibaba", "7B"),
+        "gguf": [
+            ModelInfo("Llama 3.2 3B", "bartowski/Llama-3.2-3B-Instruct-GGUF", 2.0, "Efficient and fast", "gguf", "Q4_K_M", "Meta", "3B"),
+            ModelInfo("Qwen 2.5 7B", "Qwen/Qwen2.5-7B-Instruct-GGUF", 4.5, "Excellent reasoning", "gguf", "Q4_K_M", "Alibaba", "7B"),
         ],
-        "huggingface": [
-            ModelInfo("Llama 3.2 3B", "meta-llama/Llama-3.2-3B-Instruct", 2.0, "Efficient model", "huggingface", "BF16", "Meta", "3B"),
+        "mlx": [
+            ModelInfo("Llama 3.2 3B MLX", "mlx-community/Llama-3.2-3B-Instruct-4bit", 2.0, "Mac optimized", "mlx", "4-bit", "Meta", "3B"),
         ],
-        "lmstudio": [
-            ModelInfo("Llama 3.2 3B", "Llama-3.2-3B-Instruct-GGUF", 2.0, "GGUF format", "lmstudio", "Q4_K_M", "Meta", "3B"),
+        "safetensors": [
+            ModelInfo("Llama 3.2 3B", "meta-llama/Llama-3.2-3B-Instruct", 6.0, "Full precision", "safetensors", "FP16", "Meta", "3B"),
         ],
     }
 
@@ -704,20 +704,19 @@ MODEL_CATALOG = load_model_catalog()
 
 def map_source_to_backend(source: str) -> str:
     """
-    Map model source to runtime backend (matches CLI behavior).
-    
-    CRITICAL: HuggingFace GGUF models use llama_cpp backend, NOT transformers!
+    Map model format to runtime backend.
     
     Args:
-        source: Model source ("huggingface" / "ollama" / "lmstudio" / "native")
+        source: Model format ("gguf" / "mlx" / "safetensors" / "ollama")
         
     Returns:
         Backend name for ModelConfig
     """
     mapping = {
-        "huggingface": "llama_cpp",  # HF GGUF → llama.cpp (not transformers!)
-        "ollama": "ollama",          # Ollama → ollama API
-        "lmstudio": "openai",        # LM Studio → OpenAI-compatible API
+        "gguf": "llama_cpp",         # GGUF → llama.cpp
+        "mlx": "mlx",                # MLX → mlx backend (Apple Silicon)
+        "safetensors": "transformers", # Safetensors → transformers
+        "ollama": "ollama",          # Ollama → ollama API (legacy)
         "native": "native",          # Native → MLX distributed
     }
     return mapping.get(source.lower(), "llama_cpp")
@@ -725,14 +724,14 @@ def map_source_to_backend(source: str) -> str:
 
 def get_available_models_with_status() -> Dict[str, List[Dict]]:
     """
-    Get models grouped by source, with download status.
+    Get models grouped by format, with download status.
     Uses ModelManager to check what's actually downloaded.
     
     Returns:
         {
-            "huggingface": [{"id": "qwen2.5:1.5b", "name": "...", "downloaded": True, ...}, ...],
-            "ollama": [...],
-            "lmstudio": [...]
+            "gguf": [{"id": "qwen2.5:1.5b", "name": "...", "downloaded": True, ...}, ...],
+            "mlx": [...],
+            "safetensors": [...]
         }
     """
     from parishad.models.downloader import ModelManager
@@ -786,7 +785,7 @@ def ensure_model_available(
     
     Args:
         model_id: Model identifier (e.g., "qwen2.5:1.5b")
-        source: Source to download from ("huggingface" / "ollama" / "lmstudio")
+        source: Format to download ("gguf" / "mlx" / "safetensors")
         progress_callback: Optional callback for progress updates
         cancel_event: Optional threading.Event to signal cancellation
         
@@ -845,7 +844,29 @@ def detect_available_backends() -> Dict[str, Tuple[bool, str]]:
     """
     results = {}
     
-    # Ollama
+    # llama.cpp (for GGUF models)
+    try:
+        import llama_cpp
+        results["llama_cpp"] = (True, "llama-cpp-python installed")
+    except ImportError:
+        results["llama_cpp"] = (False, "llama-cpp-python not installed")
+    
+    # MLX (for Apple Silicon)
+    try:
+        import mlx_lm
+        results["mlx"] = (True, "mlx-lm installed")
+    except ImportError:
+        results["mlx"] = (False, "mlx-lm not installed (Mac only)")
+    
+    # Transformers (for Safetensors)
+    try:
+        import transformers
+        import torch
+        results["transformers"] = (True, "Transformers installed")
+    except ImportError:
+        results["transformers"] = (False, "transformers/torch not installed")
+    
+    # Ollama (legacy support)
     try:
         if shutil.which("ollama"):
             result = subprocess.run(
@@ -863,15 +884,7 @@ def detect_available_backends() -> Dict[str, Tuple[bool, str]]:
     except Exception as e:
         results["ollama"] = (False, f"Ollama check failed: {e}")
     
-    # HuggingFace/Transformers
-    try:
-        import transformers
-        import torch
-        results["huggingface"] = (True, "Transformers installed")
-    except ImportError:
-        results["huggingface"] = (False, "transformers/torch not installed")
-    
-    # Native MLX backend
+    # Native MLX backend (distributed)
     try:
         # Check if native server is reachable
         host = os.environ.get("NATIVE_MLX_HOST", "10.0.0.2")
@@ -889,18 +902,6 @@ def detect_available_backends() -> Dict[str, Tuple[bool, str]]:
     except Exception as e:
         results["native"] = (False, f"Native check failed: {e}")
     
-    # LM Studio
-    try:
-        # Check if LM Studio API is accessible (usually localhost:1234)
-        import requests
-        response = requests.get("http://localhost:1234/v1/models", timeout=2)
-        if response.status_code == 200:
-            results["lmstudio"] = (True, "LM Studio API available")
-        else:
-            results["lmstudio"] = (False, "LM Studio API not responding")
-    except:
-        results["lmstudio"] = (False, "LM Studio not detected")
-    
     return results
 
 
@@ -910,7 +911,7 @@ def is_model_available(model_id: str, backend: str) -> bool:
     
     Args:
         model_id: Model identifier (e.g., "llama3.2:3b", "meta-llama/Llama-3.2-3B")
-        backend: Backend name ("ollama", "huggingface", "native", etc.)
+        backend: Backend name ("llama_cpp", "mlx", "transformers", "ollama", "native", etc.)
     
     Returns:
         True if model is available, False otherwise
@@ -935,9 +936,36 @@ def is_model_available(model_id: str, backend: str) -> bool:
         except Exception:
             return False
     
-    elif backend in ("huggingface", "transformers"):
+    elif backend in ("llama_cpp", "gguf"):
+        # Check if GGUF model exists via ModelManager
         try:
-            # Check HF cache for model
+            from parishad.models.downloader import ModelManager
+            manager = ModelManager()
+            model_path = manager.get_model_path(model_id)
+            return model_path is not None and model_path.exists()
+        except Exception:
+            return False
+    
+    elif backend in ("mlx",):
+        # Check if MLX model exists via ModelManager
+        try:
+            from parishad.models.downloader import ModelManager
+            manager = ModelManager()
+            model_path = manager.get_model_path(model_id)
+            return model_path is not None and model_path.exists()
+        except Exception:
+            return False
+    
+    elif backend in ("transformers", "safetensors"):
+        # Check if Safetensors/Transformers model exists via ModelManager
+        try:
+            from parishad.models.downloader import ModelManager
+            manager = ModelManager()
+            model_path = manager.get_model_path(model_id)
+            if model_path and model_path.exists():
+                return True
+            
+            # Also check HF cache
             hf_home = os.environ.get("HF_HOME", str(Path.home() / ".cache" / "huggingface"))
             cache_dir = Path(hf_home) / "hub"
             
@@ -1218,54 +1246,54 @@ Screen {
     margin-bottom: 1;
 }
 
-/* Ollama Tab - Blue */
-#tab-ollama {
+/* GGUF Tab - Blue */
+#tab-gguf {
     width: 1fr;
     border: none;
     background: #1a1a2e;
     color: #4a9eff;
 }
 
-#tab-ollama:hover {
+#tab-gguf:hover {
     background: #252545;
 }
 
-#tab-ollama.active {
+#tab-gguf.active {
     background: #4a9eff;
     color: #ffffff;
 }
 
-/* HuggingFace Tab - Yellow */
-#tab-huggingface {
+/* MLX Tab - Orange/Red */
+#tab-mlx {
     width: 1fr;
     border: none;
-    background: #2a2a1a;
-    color: #ffcc00;
+    background: #2a1a1a;
+    color: #ff6b35;
 }
 
-#tab-huggingface:hover {
-    background: #3a3a25;
+#tab-mlx:hover {
+    background: #3a2525;
 }
 
-#tab-huggingface.active {
-    background: #ffcc00;
-    color: #000000;
+#tab-mlx.active {
+    background: #ff6b35;
+    color: #ffffff;
 }
 
-/* LM Studio Tab - Purple */
-#tab-lmstudio {
+/* Safetensors Tab - Green */
+#tab-safetensors {
     width: 1fr;
     border: none;
-    background: #2a1a2e;
-    color: #9966ff;
+    background: #1a2e1e;
+    color: #00cc88;
 }
 
-#tab-lmstudio:hover {
-    background: #3a2545;
+#tab-safetensors:hover {
+    background: #254530;
 }
 
-#tab-lmstudio.active {
-    background: #9966ff;
+#tab-safetensors.active {
+    background: #00cc88;
     color: #ffffff;
 }
 
@@ -1519,7 +1547,7 @@ class SetupScreen(Screen):
         self.selected_sabha: Optional[SabhaConfig] = None
         self.selected_models: Dict[str, ModelInfo] = {}  # Map slot_name -> model
         self.current_slot_idx: int = 0
-        self.current_source = "ollama"  # Default to Ollama (matches CLI)
+        self.current_source = "gguf"  # Default to GGUF format
         self.step = 1  # 1 = Sabha, 2 = Model
         self.is_downloading = False # Lock to prevent concurrent setup
         
@@ -1562,12 +1590,12 @@ class SetupScreen(Screen):
                     classes="model-summary-bar"
                 )
                 
-                # Model browser with backend tabs (matches CLI system)
+                # Model browser with format tabs
                 with Container(id="model-browser-container"):
                     yield Horizontal(
-                        Button("🦙 Ollama", id="tab-ollama", classes="model-tab active"),
-                        Button("🤗 HuggingFace", id="tab-huggingface", classes="model-tab"),
-                        Button("🎨 LM Studio", id="tab-lmstudio", classes="model-tab"),
+                        Button("🔷 GGUF", id="tab-gguf", classes="model-tab active"),
+                        Button("🍎 MLX", id="tab-mlx", classes="model-tab"),
+                        Button("🛡️ Safetensors", id="tab-safetensors", classes="model-tab"),
                         classes="model-tabs"
                     )
                     
@@ -1575,7 +1603,7 @@ class SetupScreen(Screen):
                     yield Input(placeholder="🔍 Search models...", id="model-search")
         
                     yield ScrollableContainer(
-                        *[ModelCard(m, classes="model-item") for m in MODEL_CATALOG.get("ollama", [])],
+                        *[ModelCard(m, classes="model-item") for m in MODEL_CATALOG.get("gguf", [])],
                         id="model-list",
                         classes="model-list"
                     )
@@ -1687,17 +1715,17 @@ class SetupScreen(Screen):
         self._update_model_summary()
         self.query_one("#btn-continue", Button).disabled = True
     
-    @on(Button.Pressed, "#tab-ollama")
-    def show_ollama(self) -> None:
-        self._switch_tab("ollama")
+    @on(Button.Pressed, "#tab-gguf")
+    def show_gguf(self) -> None:
+        self._switch_tab("gguf")
     
-    @on(Button.Pressed, "#tab-huggingface")
-    def show_huggingface(self) -> None:
-        self._switch_tab("huggingface")
+    @on(Button.Pressed, "#tab-mlx")
+    def show_mlx(self) -> None:
+        self._switch_tab("mlx")
     
-    @on(Button.Pressed, "#tab-lmstudio")
-    def show_lmstudio(self) -> None:
-        self._switch_tab("lmstudio")
+    @on(Button.Pressed, "#tab-safetensors")
+    def show_safetensors(self) -> None:
+        self._switch_tab("safetensors")
     
     @on(Input.Changed, "#model-search")
     def on_search_changed(self, event: Input.Changed) -> None:
@@ -1774,12 +1802,12 @@ class SetupScreen(Screen):
 
         if self.selected_sabha and len(self.selected_models) >= len(self.selected_sabha.model_slots):
             # Create ParishadConfig from selections
-            # Store source (huggingface/ollama/lmstudio) for backend mapping
+            # Store format (gguf/mlx/safetensors) for backend mapping
             primary_model = list(self.selected_models.values())[0].shortcut if self.selected_models else "qwen2.5:1.5b"
             
             new_config = ParishadConfig(
                 sabha=self.selected_sabha.id,
-                backend=self.current_source,  # Source: huggingface/ollama/lmstudio
+                backend=self.current_source,  # Format: gguf/mlx/safetensors
                 model=primary_model,  # Model ID for ModelManager
                 cwd=str(Path.cwd())
             )

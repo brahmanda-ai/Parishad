@@ -119,6 +119,10 @@ def suggest_configuration_from_local(local_models: List[ModelInfo], mode: str, t
             backend = "llama_cpp"
         elif m.format.value == "ollama":
             backend = "ollama"
+        elif m.format.value == "mlx":
+            backend = "mlx"
+        elif m.format.value == "safetensors":
+            backend = "transformers"
             
         candidates.append(ModelEntry(
             name=m.name,
