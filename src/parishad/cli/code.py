@@ -563,7 +563,7 @@ def build_augmented_prompt(user_query: str, loaded_files: List[LoadedFile], flag
 
 
 # ASCII logo - Devanagari परिषद् with left-to-right saffron gradient (vibrant)
-LOGO = """[#e65e1c]   ██████[/][#ff671f]        [/][#ff7a3d]        [/]
+LOGO = """[#e65e1c]     ██████[/][#ff671f]        [/][#ff7a3d]        [/]
 [#e65e1c]  ██ ╔═[/][#ff671f]═██     [/][#ff7a3d]        [/]
 [#e65e1c]███████[/][#ff671f]██████████[/][#ff7a3d]███████[/][#ff8c5a]████████[/][#ff9e78]████████[/][#ffb095]██████████═╗[/]
 [#e65e1c]  ╚═██ ╔═[/][#ff671f]═██ ╔═██[/][#ff7a3d] ╔═▀▀▀▀█[/][#ff8c5a]█ ╔═███╔[/][#ff9e78]══██ ╔═[/][#ffb095]══════██ ╔═╝[/]
@@ -1593,9 +1593,9 @@ class SetupScreen(Screen):
                 # Model browser with format tabs
                 with Container(id="model-browser-container"):
                     yield Horizontal(
-                        Button("🔷 GGUF", id="tab-gguf", classes="model-tab active"),
-                        Button("🍎 MLX", id="tab-mlx", classes="model-tab"),
-                        Button("🛡️ Safetensors", id="tab-safetensors", classes="model-tab"),
+                        Button("🦙 GGUF", id="tab-gguf", classes="model-tab active"),
+                        Button(Text.from_markup("[white][/] MLX"), id="tab-mlx", classes="model-tab"),
+                        Button("🤗 Safetensors", id="tab-safetensors", classes="model-tab"),
                         classes="model-tabs"
                     )
                     
@@ -1876,26 +1876,23 @@ class SetupScreen(Screen):
                 # Reset progress for new file
                 pbar.update(total=100, progress=0)
                 
-                # This is EXACTLY what CLI does in main.py:download_model
+                # Download using thread pool (safe now: urllib-based, no subprocess)
                 def _do_download():
-                    """Execute download in thread pool (production-safe)."""
-                    # DEBUG LOGGING
+                    """Execute download in thread pool."""
                     db_path = Path.home() / "parishad_debug.log"
                     with open(db_path, "a") as f:
-                        f.write(f"DEBUG: Starting download for {model_info.name} from {model_info.source}\n")
+                        f.write(f"DEBUG: Starting download for {model_info.name} source={model_info.source}\n")
                     
                     def _progress(p):
                         """Track download progress and update TUI safely."""
                         if p.total_bytes > 0:
-                            # Calculate percentage
                             percent = (p.downloaded_bytes / p.total_bytes) * 100
-                            # Update TUI from thread
                             self.app.call_from_thread(pbar.update, progress=percent)
                         
                     try:
                         res = manager.download(
                             model_spec=model_info.shortcut,
-                            source="huggingface" if model_info.source == "huggingface" else model_info.source, 
+                            source=model_info.source, 
                             progress_callback=_progress
                         )
                         with open(db_path, "a") as f:
@@ -1906,9 +1903,9 @@ class SetupScreen(Screen):
                         import traceback
                         with open(db_path, "a") as f:
                             traceback.print_exc(file=f)
-                        return False # Explicit failure return
+                        return False
 
-                    return True # Explicit success return
+                    return True
                 
                 # Run in thread pool to avoid blocking TUI
                 success = await loop.run_in_executor(None, _do_download)
@@ -3841,25 +3838,66 @@ except Exception as e:
         """Show or change model."""
         if args:
             new_model = args[0]
-            # Check if model changed
-            if self.model != new_model:
+            
+            # ALWAYS calculate correct backend, even if model string is same
+            # This fixes cases where backend got desynced from model
+            new_backend = None
+            
+            # Check known models
+            if self.config and self.config.models and new_model in self.config.models:
+                model_info = self.config.models[new_model]
+                # Handle both dict access (raw config) and attribute access (pydantic)
+                source = None
+                if hasattr(model_info, "source"):
+                    source = model_info.source
+                    # Handle Enum
+                    if hasattr(source, "value"):
+                        source = source.value
+                elif isinstance(model_info, dict):
+                    source = model_info.get("source")
+                
+                if source:
+                    new_backend = map_source_to_backend(str(source))
+            
+            # Fallback heuristics
+            if not new_backend:
+                if "mlx-community" in new_model or new_model.startswith("mlx:"):
+                    new_backend = "mlx"
+                elif new_model.startswith("ollama:") or "ollama" in new_model:
+                    new_backend = "ollama"
+                elif ".gguf" in new_model.lower():
+                    new_backend = "llama_cpp"
+                elif ".safetensors" in new_model.lower():
+                    new_backend = "transformers"
+            
+            # Default to existing if still unknown, or llama_cpp
+            if not new_backend:
+                 new_backend = self.backend or "llama_cpp"
+
+            # Check if ANYTHING changed (model or backend)
+            if self.model != new_model or self.backend != new_backend:
                 self.model = new_model
+                self.backend = new_backend
+                
                 # Update config if exists
                 if self.config:
                     self.config.model = new_model
+                    self.config.backend = new_backend
                     try:
                         save_parishad_config(self.config)
-                        self.log_message(f"[green]✓ Model changed to: {self.model}[/green]")
-                        # Trigger re-initialization if needed
-                        # self._initialize_chat() 
+                        self.log_message(f"[green]✓ Model set to: {self.model}[/green]")
+                        self.log_message(f"[dim]  Backend set to: {self.backend}[/dim]")
                     except Exception as e:
                         self.log_message(f"[red]Failed to save config: {e}[/red]")
                 else:
-                    self.log_message(f"[dim]Model changed to: {self.model} (runtime only)[/dim]")
+                    self.log_message(f"[dim]Model set to: {self.model} (runtime only)[/dim]")
+                    self.log_message(f"[dim]  Backend set to: {self.backend}[/dim]")
             else:
                 self.log_message(f"[dim]Model is already: {self.model}[/dim]")
+                self.log_message(f"[dim]Backend is correct: {self.backend}[/dim]")
         else:
             self.log_message(f"[dim]Current model: {self.model}[/dim]")
+            self.log_message(f"[dim]Current backend: {self.backend}[/dim]")
     
     def _cmd_scan(self) -> None:
         """Scan for models on disk."""

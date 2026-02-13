@@ -13,6 +13,12 @@ Models are stored in format-specific directories for easy management.
 
 from __future__ import annotations
 
+# Disable Xet storage protocol in huggingface_hub >= 0.27
+# Xet spawns a native binary subprocess that passes invalid file descriptors,
+# causing "bad value(s) in fds_to_keep" errors. Must be set before hf_hub import.
+import os as _os
+_os.environ["HF_HUB_DISABLE_XET"] = "1"
+
 import hashlib
 import json
 import logging
@@ -989,6 +995,45 @@ class LMStudioManager:
 
 
 # =============================================================================
+# HuggingFace Auth Helper
+# =============================================================================
+
+
+def _get_hf_headers() -> dict:
+    """Get HTTP headers with HuggingFace auth token if available.
+    
+    Reads the token from standard HuggingFace locations:
+    - ~/.cache/huggingface/token
+    - ~/.huggingface/token
+    - HF_TOKEN environment variable
+    
+    Returns:
+        Dict with User-Agent and optional Authorization headers
+    """
+    headers = {"User-Agent": "parishad/0.1"}
+    
+    # Try environment variable first
+    token = os.environ.get("HF_TOKEN") or os.environ.get("HUGGING_FACE_HUB_TOKEN")
+    
+    if not token:
+        # Try standard file locations
+        for token_path in [
+            Path.home() / ".cache" / "huggingface" / "token",
+            Path.home() / ".huggingface" / "token",
+        ]:
+            if token_path.exists():
+                token = token_path.read_text().strip()
+                if token:
+                    break
+    
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+        logger.debug("Using HuggingFace authentication token")
+    
+    return headers
+
+
+# =============================================================================
 # MLX Models Downloader
 # =============================================================================
 
@@ -1018,7 +1063,11 @@ class MLXDownloader:
         progress_callback: Optional[ProgressCallback] = None,
     ) -> ModelInfo:
         """
-        Download an MLX model from HuggingFace.
+        Download an MLX model from HuggingFace using direct HTTP.
+        
+        Uses urllib (like the GGUF downloader) instead of snapshot_download
+        to avoid huggingface_hub's subprocess-based download mechanisms
+        that cause 'bad value(s) in fds_to_keep' errors in TUI environments.
         
         Args:
             model_spec: Model repo ID (e.g., "mlx-community/Llama-3.2-1B-Instruct-4bit")
@@ -1027,34 +1076,91 @@ class MLXDownloader:
         Returns:
             ModelInfo for the downloaded model
         """
-        try:
-            from huggingface_hub import snapshot_download
-        except ImportError:
-            raise ImportError(
-                "huggingface_hub is required for downloading MLX models. "
-                "Install with: pip install huggingface_hub"
-            )
+        import urllib.request
+        import json as _json
         
         logger.info(f"Downloading MLX model: {model_spec}")
         
         # Parse model spec
         if "/" not in model_spec:
-            # Assume mlx-community if no org specified
             model_spec = f"mlx-community/{model_spec}"
         
         # Create model-specific directory
         model_name = model_spec.replace("/", "_")
         model_path = self.mlx_dir / model_name
+        model_path.mkdir(parents=True, exist_ok=True)
         
-        # Download entire model directory (MLX models need config files)
         try:
-            local_dir = snapshot_download(
-                repo_id=model_spec,
-                local_dir=model_path,
-                local_dir_use_symlinks=False,
-            )
+            # 1. List files in repo via HuggingFace API
+            api_url = f"https://huggingface.co/api/models/{model_spec}/tree/main?recursive=true&expand=false"
+            req = urllib.request.Request(api_url, headers=_get_hf_headers())
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                files_data = _json.loads(resp.read().decode())
             
-            model_path = Path(local_dir)
+            # 2. Filter to actual files (not directories)
+            files_to_download = [
+                f for f in files_data 
+                if f.get("type") == "file"
+            ]
+            
+            if not files_to_download:
+                raise RuntimeError(f"No files found in repo: {model_spec}")
+            
+            logger.info(f"Found {len(files_to_download)} files to download for MLX model")
+            
+            # 3. Calculate total size for progress
+            total_size = sum(f.get("size", 0) for f in files_to_download)
+            downloaded_total = 0
+            
+            # 4. Download each file
+            for file_info in files_to_download:
+                file_path = file_info["path"]  # e.g., "config.json", "model.safetensors"
+                file_size = file_info.get("size", 0)
+                
+                dest = model_path / file_path
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                
+                # Skip if already exists with correct size
+                if dest.exists() and dest.stat().st_size == file_size:
+                    downloaded_total += file_size
+                    continue
+                
+                # Download URL
+                download_url = f"https://huggingface.co/{model_spec}/resolve/main/{file_path}"
+                
+                logger.info(f"Downloading {file_path} ({file_size / 1024 / 1024:.1f} MB)")
+                
+                temp_dest = dest.with_suffix(dest.suffix + ".download")
+                try:
+                    req = urllib.request.Request(download_url, headers=_get_hf_headers())
+                    with urllib.request.urlopen(req) as response:
+                        with open(temp_dest, "wb") as f:
+                            file_downloaded = 0
+                            start_time = datetime.now()
+                            while True:
+                                chunk = response.read(65536)  # 64KB chunks
+                                if not chunk:
+                                    break
+                                f.write(chunk)
+                                file_downloaded += len(chunk)
+                                
+                                if progress_callback:
+                                    elapsed = (datetime.now() - start_time).total_seconds()
+                                    speed = file_downloaded / elapsed if elapsed > 0 else 0
+                                    progress_callback(DownloadProgress(
+                                        total_bytes=total_size,
+                                        downloaded_bytes=downloaded_total + file_downloaded,
+                                        speed_bps=speed,
+                                        eta_seconds=(total_size - downloaded_total - file_downloaded) / speed if speed > 0 else 0,
+                                    ))
+                    
+                    temp_dest.rename(dest)
+                    downloaded_total += file_size
+                    
+                except Exception as e:
+                    if temp_dest.exists():
+                        temp_dest.unlink()
+                    raise
             
             # Create ModelInfo
             size = sum(f.stat().st_size for f in model_path.rglob("*") if f.is_file())
@@ -1105,7 +1211,11 @@ class SafetensorsDownloader:
         progress_callback: Optional[ProgressCallback] = None,
     ) -> ModelInfo:
         """
-        Download a safetensors model from HuggingFace.
+        Download a safetensors model from HuggingFace using direct HTTP.
+        
+        Uses urllib (like the GGUF downloader) instead of snapshot_download
+        to avoid huggingface_hub's subprocess-based download mechanisms
+        that cause 'bad value(s) in fds_to_keep' errors in TUI environments.
         
         Args:
             model_spec: Model repo ID (e.g., "meta-llama/Llama-3.2-1B-Instruct")
@@ -1114,31 +1224,97 @@ class SafetensorsDownloader:
         Returns:
             ModelInfo for the downloaded model
         """
-        try:
-            from huggingface_hub import snapshot_download
-        except ImportError:
-            raise ImportError(
-                "huggingface_hub is required for downloading models. "
-                "Install with: pip install huggingface_hub"
-            )
+        import urllib.request
+        import json as _json
         
         logger.info(f"Downloading Safetensors model: {model_spec}")
         
         # Create model-specific directory
         model_name = model_spec.replace("/", "_")
         model_path = self.safetensors_dir / model_name
+        model_path.mkdir(parents=True, exist_ok=True)
         
-        # Download entire model directory (need config + safetensors files)
-        try:
-            # Download safetensors files only (not pytorch bins)
-            local_dir = snapshot_download(
-                repo_id=model_spec,
-                local_dir=model_path,
-                local_dir_use_symlinks=False,
-                allow_patterns=["*.safetensors", "*.json", "tokenizer*", "*.txt"],
+        # Allowed file patterns (equivalent to snapshot_download allow_patterns)
+        def _should_download(filepath: str) -> bool:
+            name = filepath.rsplit("/", 1)[-1] if "/" in filepath else filepath
+            return (
+                name.endswith(".safetensors") or
+                name.endswith(".json") or
+                name.startswith("tokenizer") or
+                name.endswith(".txt")
             )
+        
+        try:
+            # 1. List files in repo via HuggingFace API
+            api_url = f"https://huggingface.co/api/models/{model_spec}/tree/main?recursive=true&expand=false"
+            req = urllib.request.Request(api_url, headers=_get_hf_headers())
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                files_data = _json.loads(resp.read().decode())
             
-            model_path = Path(local_dir)
+            # 2. Filter to actual files matching allowed patterns
+            files_to_download = [
+                f for f in files_data
+                if f.get("type") == "file" and _should_download(f["path"])
+            ]
+            
+            if not files_to_download:
+                raise RuntimeError(f"No safetensors files found in repo: {model_spec}")
+            
+            logger.info(f"Found {len(files_to_download)} files to download for Safetensors model")
+            
+            # 3. Calculate total size for progress
+            total_size = sum(f.get("size", 0) for f in files_to_download)
+            downloaded_total = 0
+            
+            # 4. Download each file
+            for file_info in files_to_download:
+                file_path = file_info["path"]
+                file_size = file_info.get("size", 0)
+                
+                dest = model_path / file_path
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                
+                # Skip if already exists with correct size
+                if dest.exists() and dest.stat().st_size == file_size:
+                    downloaded_total += file_size
+                    continue
+                
+                # Download URL
+                download_url = f"https://huggingface.co/{model_spec}/resolve/main/{file_path}"
+                
+                logger.info(f"Downloading {file_path} ({file_size / 1024 / 1024:.1f} MB)")
+                
+                temp_dest = dest.with_suffix(dest.suffix + ".download")
+                try:
+                    req = urllib.request.Request(download_url, headers=_get_hf_headers())
+                    with urllib.request.urlopen(req) as response:
+                        with open(temp_dest, "wb") as f:
+                            file_downloaded = 0
+                            start_time = datetime.now()
+                            while True:
+                                chunk = response.read(65536)  # 64KB chunks
+                                if not chunk:
+                                    break
+                                f.write(chunk)
+                                file_downloaded += len(chunk)
+                                
+                                if progress_callback:
+                                    elapsed = (datetime.now() - start_time).total_seconds()
+                                    speed = file_downloaded / elapsed if elapsed > 0 else 0
+                                    progress_callback(DownloadProgress(
+                                        total_bytes=total_size,
+                                        downloaded_bytes=downloaded_total + file_downloaded,
+                                        speed_bps=speed,
+                                        eta_seconds=(total_size - downloaded_total - file_downloaded) / speed if speed > 0 else 0,
+                                    ))
+                    
+                    temp_dest.rename(dest)
+                    downloaded_total += file_size
+                    
+                except Exception as e:
+                    if temp_dest.exists():
+                        temp_dest.unlink()
+                    raise
             
             # Create ModelInfo
             size = sum(f.stat().st_size for f in model_path.rglob("*.safetensors"))

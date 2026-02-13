@@ -267,10 +267,12 @@ def download_phase(selected: Dict[str, ModelEntry], manager: ModelManager):
                 progress.update(tid, total=p.total_bytes, completed=p.downloaded_bytes)
                 
             try:
-                # Map backend
+                # Map backend to download source
                 src = "auto"
-                if m.backend == "transformers": src = "huggingface"
+                if m.backend == "transformers": src = "safetensors"
+                elif m.backend == "mlx": src = "mlx"
                 elif m.backend == "ollama": src = "ollama"
+                elif m.backend == "llama_cpp": src = "gguf"
                 
                 manager.download(m.model_id, source=src, progress_callback=cb)
                 progress.update(tid, description=f"[green]✓ {m.name}[/green]")

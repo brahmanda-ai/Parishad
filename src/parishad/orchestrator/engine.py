@@ -1422,11 +1422,21 @@ class Parishad:
                                 # Validate file exists
                                 model_file = Path(model_path)
                                 if not model_file.exists():
-                                    logger.error(f"Model file does not exist: {model_path}")
+                                    logger.error(f"Model path does not exist: {model_path}")
                                     model_path = None
-                                elif not model_file.is_file():
-                                    logger.error(f"Model path is not a file: {model_path}")
-                                    model_path = None
+                                else:
+                                    # Check type based on backend
+                                    is_mlx = backend_name == "mlx"
+                                    if is_mlx and model_file.is_dir():
+                                        # MLX expects a directory
+                                        pass
+                                    elif not is_mlx and model_file.is_dir():
+                                        logger.error(f"Model path is a directory but backend {backend_name} expects a file: {model_path}")
+                                        model_path = None
+                                    elif not model_file.is_file() and not model_file.is_dir():
+                                        # Special files (sockets etc) or just weirdness
+                                        logger.error(f"Model path is not a valid file or directory: {model_path}")
+                                        model_path = None
                         else:
                             # Might be a direct path already, log warning
                             logger.warning(f"Model '{model_path}' not found in models dict, treating as direct path")
