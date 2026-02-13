@@ -89,6 +89,11 @@ benchmark_traces/
 gaia_benchmark.log
 gaia_results.jsonl
 requirements.txt
+output.json
+test_output.txt
+test_results.txt
+debug_results.txt
+
 
 # API keys and secrets
 secrets.yaml

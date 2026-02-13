@@ -84,7 +84,7 @@ def load_parishad_config() -> Optional[ParishadConfig]:
 class ParishadConfig:
     """Central configuration for Parishad TUI."""
     sabha: Optional[str] = None          # "laghu" | "madhyam" | "maha"
-    backend: Optional[str] = None        # "ollama" | "huggingface" | "lmstudio"
+    backend: Optional[str] = None        # "llama_cpp" | "mlx" | "transformers" | "ollama"
     model: Optional[str] = None          # model id/name
     cwd: str = ""       # working directory (optional)
     setup_complete: bool = False
@@ -563,16 +563,16 @@ def build_augmented_prompt(user_query: str, loaded_files: List[LoadedFile], flag
 
 
 # ASCII logo - Devanagari परिषद् with left-to-right saffron gradient (vibrant)
-LOGO = """[#e65e1c]   █████[/][#ff671f]        [/][#ff7a3d]        [/]
+LOGO = """[#e65e1c]   ██████[/][#ff671f]        [/][#ff7a3d]        [/]
 [#e65e1c]  ██ ╔═[/][#ff671f]═██     [/][#ff7a3d]        [/]
-[#e65e1c]████████[/][#ff671f]██████████[/][#ff7a3d]███████[/][#ff8c5a]████████[/][#ff9e78]████████[/][#ffb095]██████████═╗[/]
+[#e65e1c]███████[/][#ff671f]██████████[/][#ff7a3d]███████[/][#ff8c5a]████████[/][#ff9e78]████████[/][#ffb095]██████████═╗[/]
 [#e65e1c]  ╚═██ ╔═[/][#ff671f]═██ ╔═██[/][#ff7a3d] ╔═▀▀▀▀█[/][#ff8c5a]█ ╔═███╔[/][#ff9e78]══██ ╔═[/][#ffb095]══════██ ╔═╝[/]
-[#e65e1c]   ██ ║ [/][#ff671f] ██ ║ ██[/][#ff7a3d] ║     █[/][#ff8c5a]█ ║ ██ █[/][#ff9e78]█ ██ ║  [/][#ffb095] ██████ ║[/]
-[#e65e1c]   ██ ║ [/][#ff671f] ██ ║ ██[/][#ff7a3d] ║   ██▀[/][#ff8c5a]▀╔╝ ██ ║[/][#ff9e78] ███ ║ █[/][#ffb095]█ ╔═════╝[/]
-[#e65e1c]     ███[/][#ff671f]███ ║ ██[/][#ff7a3d] ║ ██   [/][#ff8c5a]╔╝    ██[/][#ff9e78]████ ║ █[/][#ffb095]█ ║  ██═╗[/]
-[#e65e1c]        [/][#ff671f] ██ ║ ██[/][#ff7a3d] ║   ██ [/][#ff8c5a]╚═╗     [/][#ff9e78]  ██ ║  [/][#ffb095] ██████ ║[/]
-[#e65e1c]        [/][#ff671f] ██ ║ ██[/][#ff7a3d] ║     █[/][#ff8c5a]█ ║     [/][#ff9e78]  ██ ║  [/][#ffb095]     ██ ║[/]
-[#e65e1c]        [/][#ff671f] ╚══╝ ╚═[/][#ff7a3d]═╝     ╚[/][#ff8c5a]══╝     [/][#ff9e78]  ╚══╝  [/][#ffb095]     ╚══╝[/]"""
+[#e65e1c]  ██ ║ [/][#ff671f] ██ ║ ██[/][#ff7a3d] ║     █[/][#ff8c5a]█ ║ ██ █[/][#ff9e78]█ ██ ║  [/][#ffb095] ██████ ║[/]
+[#e65e1c]  ██ ║ [/][#ff671f] ██ ║ ██[/][#ff7a3d] ║   ██▀[/][#ff8c5a]▀╔╝ ██ ║[/][#ff9e78] ███ ║ █[/][#ffb095]█ ╔═════╝[/]
+[#e65e1c]    ███[/][#ff671f]███ ║ ██[/][#ff7a3d] ║ ██   [/][#ff8c5a]╔╝    ██[/][#ff9e78]████ ║ █[/][#ffb095]█ ║  ██═╗[/]
+[#e65e1c]       [/][#ff671f] ██ ║ ██[/][#ff7a3d] ║   ██ [/][#ff8c5a]╚═╗     [/][#ff9e78]  ██ ║  [/][#ffb095] ██████ ║[/]
+[#e65e1c]       [/][#ff671f] ██ ║ ██[/][#ff7a3d] ║     █[/][#ff8c5a]█ ║     [/][#ff9e78]  ██ ║  [/][#ffb095]     ██ ║[/]
+[#e65e1c]       [/][#ff671f] ╚══╝ ╚═[/][#ff7a3d]═╝     ╚[/][#ff8c5a]══╝     [/][#ff9e78]  ╚══╝  [/][#ffb095]     ╚══╝[/]"""
 
 
 # =============================================================================
@@ -645,7 +645,7 @@ class ModelInfo:
     shortcut: str
     size_gb: float
     description: str
-    source: str  # huggingface, ollama, lmstudio
+    source: str  # gguf, mlx, safetensors (model format)
     quantization: str = "Q4_K_M"
     distributor: str = ""
     params: str = ""
@@ -656,7 +656,7 @@ def load_model_catalog() -> dict:
     """Load model catalog from JSON file."""
     if MODELS_JSON_PATH.exists():
         try:
-            with open(MODELS_JSON_PATH) as f:
+            with open(MODELS_JSON_PATH, encoding='utf-8') as f:
                 data = json.load(f)
             
             catalog = {}
@@ -681,15 +681,15 @@ def load_model_catalog() -> dict:
     
     # Fallback to minimal catalog
     return {
-        "ollama": [
-            ModelInfo("Llama 3.2 3B", "llama3.2:3b", 2.0, "Efficient and fast", "ollama", "Q4_K_M", "Meta", "3B"),
-            ModelInfo("Qwen 2.5 7B", "qwen2.5:7b", 4.5, "Excellent reasoning", "ollama", "Q4_K_M", "Alibaba", "7B"),
+        "gguf": [
+            ModelInfo("Llama 3.2 3B", "bartowski/Llama-3.2-3B-Instruct-GGUF", 2.0, "Efficient and fast", "gguf", "Q4_K_M", "Meta", "3B"),
+            ModelInfo("Qwen 2.5 7B", "Qwen/Qwen2.5-7B-Instruct-GGUF", 4.5, "Excellent reasoning", "gguf", "Q4_K_M", "Alibaba", "7B"),
         ],
-        "huggingface": [
-            ModelInfo("Llama 3.2 3B", "meta-llama/Llama-3.2-3B-Instruct", 2.0, "Efficient model", "huggingface", "BF16", "Meta", "3B"),
+        "mlx": [
+            ModelInfo("Llama 3.2 3B MLX", "mlx-community/Llama-3.2-3B-Instruct-4bit", 2.0, "Mac optimized", "mlx", "4-bit", "Meta", "3B"),
         ],
-        "lmstudio": [
-            ModelInfo("Llama 3.2 3B", "Llama-3.2-3B-Instruct-GGUF", 2.0, "GGUF format", "lmstudio", "Q4_K_M", "Meta", "3B"),
+        "safetensors": [
+            ModelInfo("Llama 3.2 3B", "meta-llama/Llama-3.2-3B-Instruct", 6.0, "Full precision", "safetensors", "FP16", "Meta", "3B"),
         ],
     }
 
@@ -704,20 +704,19 @@ MODEL_CATALOG = load_model_catalog()
 
 def map_source_to_backend(source: str) -> str:
     """
-    Map model source to runtime backend (matches CLI behavior).
-    
-    CRITICAL: HuggingFace GGUF models use llama_cpp backend, NOT transformers!
+    Map model format to runtime backend.
     
     Args:
-        source: Model source ("huggingface" / "ollama" / "lmstudio" / "native")
+        source: Model format ("gguf" / "mlx" / "safetensors" / "ollama")
         
     Returns:
         Backend name for ModelConfig
     """
     mapping = {
-        "huggingface": "llama_cpp",  # HF GGUF → llama.cpp (not transformers!)
-        "ollama": "ollama",          # Ollama → ollama API
-        "lmstudio": "openai",        # LM Studio → OpenAI-compatible API
+        "gguf": "llama_cpp",         # GGUF → llama.cpp
+        "mlx": "mlx",                # MLX → mlx backend (Apple Silicon)
+        "safetensors": "transformers", # Safetensors → transformers
+        "ollama": "ollama",          # Ollama → ollama API (legacy)
         "native": "native",          # Native → MLX distributed
     }
     return mapping.get(source.lower(), "llama_cpp")
@@ -725,14 +724,14 @@ def map_source_to_backend(source: str) -> str:
 
 def get_available_models_with_status() -> Dict[str, List[Dict]]:
     """
-    Get models grouped by source, with download status.
+    Get models grouped by format, with download status.
     Uses ModelManager to check what's actually downloaded.
     
     Returns:
         {
-            "huggingface": [{"id": "qwen2.5:1.5b", "name": "...", "downloaded": True, ...}, ...],
-            "ollama": [...],
-            "lmstudio": [...]
+            "gguf": [{"id": "qwen2.5:1.5b", "name": "...", "downloaded": True, ...}, ...],
+            "mlx": [...],
+            "safetensors": [...]
         }
     """
     from parishad.models.downloader import ModelManager
@@ -786,7 +785,7 @@ def ensure_model_available(
     
     Args:
         model_id: Model identifier (e.g., "qwen2.5:1.5b")
-        source: Source to download from ("huggingface" / "ollama" / "lmstudio")
+        source: Format to download ("gguf" / "mlx" / "safetensors")
         progress_callback: Optional callback for progress updates
         cancel_event: Optional threading.Event to signal cancellation
         
@@ -845,7 +844,29 @@ def detect_available_backends() -> Dict[str, Tuple[bool, str]]:
     """
     results = {}
     
-    # Ollama
+    # llama.cpp (for GGUF models)
+    try:
+        import llama_cpp
+        results["llama_cpp"] = (True, "llama-cpp-python installed")
+    except ImportError:
+        results["llama_cpp"] = (False, "llama-cpp-python not installed")
+    
+    # MLX (for Apple Silicon)
+    try:
+        import mlx_lm
+        results["mlx"] = (True, "mlx-lm installed")
+    except ImportError:
+        results["mlx"] = (False, "mlx-lm not installed (Mac only)")
+    
+    # Transformers (for Safetensors)
+    try:
+        import transformers
+        import torch
+        results["transformers"] = (True, "Transformers installed")
+    except ImportError:
+        results["transformers"] = (False, "transformers/torch not installed")
+    
+    # Ollama (legacy support)
     try:
         if shutil.which("ollama"):
             result = subprocess.run(
@@ -863,15 +884,7 @@ def detect_available_backends() -> Dict[str, Tuple[bool, str]]:
     except Exception as e:
         results["ollama"] = (False, f"Ollama check failed: {e}")
     
-    # HuggingFace/Transformers
-    try:
-        import transformers
-        import torch
-        results["huggingface"] = (True, "Transformers installed")
-    except ImportError:
-        results["huggingface"] = (False, "transformers/torch not installed")
-    
-    # Native MLX backend
+    # Native MLX backend (distributed)
     try:
         # Check if native server is reachable
         host = os.environ.get("NATIVE_MLX_HOST", "10.0.0.2")
@@ -889,18 +902,6 @@ def detect_available_backends() -> Dict[str, Tuple[bool, str]]:
     except Exception as e:
         results["native"] = (False, f"Native check failed: {e}")
     
-    # LM Studio
-    try:
-        # Check if LM Studio API is accessible (usually localhost:1234)
-        import requests
-        response = requests.get("http://localhost:1234/v1/models", timeout=2)
-        if response.status_code == 200:
-            results["lmstudio"] = (True, "LM Studio API available")
-        else:
-            results["lmstudio"] = (False, "LM Studio API not responding")
-    except:
-        results["lmstudio"] = (False, "LM Studio not detected")
-    
     return results
 
 
@@ -910,7 +911,7 @@ def is_model_available(model_id: str, backend: str) -> bool:
     
     Args:
         model_id: Model identifier (e.g., "llama3.2:3b", "meta-llama/Llama-3.2-3B")
-        backend: Backend name ("ollama", "huggingface", "native", etc.)
+        backend: Backend name ("llama_cpp", "mlx", "transformers", "ollama", "native", etc.)
     
     Returns:
         True if model is available, False otherwise
@@ -935,9 +936,36 @@ def is_model_available(model_id: str, backend: str) -> bool:
         except Exception:
             return False
     
-    elif backend in ("huggingface", "transformers"):
+    elif backend in ("llama_cpp", "gguf"):
+        # Check if GGUF model exists via ModelManager
         try:
-            # Check HF cache for model
+            from parishad.models.downloader import ModelManager
+            manager = ModelManager()
+            model_path = manager.get_model_path(model_id)
+            return model_path is not None and model_path.exists()
+        except Exception:
+            return False
+    
+    elif backend in ("mlx",):
+        # Check if MLX model exists via ModelManager
+        try:
+            from parishad.models.downloader import ModelManager
+            manager = ModelManager()
+            model_path = manager.get_model_path(model_id)
+            return model_path is not None and model_path.exists()
+        except Exception:
+            return False
+    
+    elif backend in ("transformers", "safetensors"):
+        # Check if Safetensors/Transformers model exists via ModelManager
+        try:
+            from parishad.models.downloader import ModelManager
+            manager = ModelManager()
+            model_path = manager.get_model_path(model_id)
+            if model_path and model_path.exists():
+                return True
+            
+            # Also check HF cache
             hf_home = os.environ.get("HF_HOME", str(Path.home() / ".cache" / "huggingface"))
             cache_dir = Path(hf_home) / "hub"
             
@@ -1218,54 +1246,54 @@ Screen {
     margin-bottom: 1;
 }
 
-/* Ollama Tab - Blue */
-#tab-ollama {
+/* GGUF Tab - Blue */
+#tab-gguf {
     width: 1fr;
     border: none;
     background: #1a1a2e;
     color: #4a9eff;
 }
 
-#tab-ollama:hover {
+#tab-gguf:hover {
     background: #252545;
 }
 
-#tab-ollama.active {
+#tab-gguf.active {
     background: #4a9eff;
     color: #ffffff;
 }
 
-/* HuggingFace Tab - Yellow */
-#tab-huggingface {
+/* MLX Tab - Orange/Red */
+#tab-mlx {
     width: 1fr;
     border: none;
-    background: #2a2a1a;
-    color: #ffcc00;
+    background: #2a1a1a;
+    color: #ff6b35;
 }
 
-#tab-huggingface:hover {
-    background: #3a3a25;
+#tab-mlx:hover {
+    background: #3a2525;
 }
 
-#tab-huggingface.active {
-    background: #ffcc00;
-    color: #000000;
+#tab-mlx.active {
+    background: #ff6b35;
+    color: #ffffff;
 }
 
-/* LM Studio Tab - Purple */
-#tab-lmstudio {
+/* Safetensors Tab - Green */
+#tab-safetensors {
     width: 1fr;
     border: none;
-    background: #2a1a2e;
-    color: #9966ff;
+    background: #1a2e1e;
+    color: #00cc88;
 }
 
-#tab-lmstudio:hover {
-    background: #3a2545;
+#tab-safetensors:hover {
+    background: #254530;
 }
 
-#tab-lmstudio.active {
-    background: #9966ff;
+#tab-safetensors.active {
+    background: #00cc88;
     color: #ffffff;
 }
 
@@ -1519,7 +1547,7 @@ class SetupScreen(Screen):
         self.selected_sabha: Optional[SabhaConfig] = None
         self.selected_models: Dict[str, ModelInfo] = {}  # Map slot_name -> model
         self.current_slot_idx: int = 0
-        self.current_source = "ollama"  # Default to Ollama (matches CLI)
+        self.current_source = "gguf"  # Default to GGUF format
         self.step = 1  # 1 = Sabha, 2 = Model
         self.is_downloading = False # Lock to prevent concurrent setup
         
@@ -1562,12 +1590,12 @@ class SetupScreen(Screen):
                     classes="model-summary-bar"
                 )
                 
-                # Model browser with backend tabs (matches CLI system)
+                # Model browser with format tabs
                 with Container(id="model-browser-container"):
                     yield Horizontal(
-                        Button("🦙 Ollama", id="tab-ollama", classes="model-tab active"),
-                        Button("🤗 HuggingFace", id="tab-huggingface", classes="model-tab"),
-                        Button("🎨 LM Studio", id="tab-lmstudio", classes="model-tab"),
+                        Button("🔷 GGUF", id="tab-gguf", classes="model-tab active"),
+                        Button("🍎 MLX", id="tab-mlx", classes="model-tab"),
+                        Button("🛡️ Safetensors", id="tab-safetensors", classes="model-tab"),
                         classes="model-tabs"
                     )
                     
@@ -1575,7 +1603,7 @@ class SetupScreen(Screen):
                     yield Input(placeholder="🔍 Search models...", id="model-search")
         
                     yield ScrollableContainer(
-                        *[ModelCard(m, classes="model-item") for m in MODEL_CATALOG.get("ollama", [])],
+                        *[ModelCard(m, classes="model-item") for m in MODEL_CATALOG.get("gguf", [])],
                         id="model-list",
                         classes="model-list"
                     )
@@ -1687,17 +1715,17 @@ class SetupScreen(Screen):
         self._update_model_summary()
         self.query_one("#btn-continue", Button).disabled = True
     
-    @on(Button.Pressed, "#tab-ollama")
-    def show_ollama(self) -> None:
-        self._switch_tab("ollama")
+    @on(Button.Pressed, "#tab-gguf")
+    def show_gguf(self) -> None:
+        self._switch_tab("gguf")
     
-    @on(Button.Pressed, "#tab-huggingface")
-    def show_huggingface(self) -> None:
-        self._switch_tab("huggingface")
+    @on(Button.Pressed, "#tab-mlx")
+    def show_mlx(self) -> None:
+        self._switch_tab("mlx")
     
-    @on(Button.Pressed, "#tab-lmstudio")
-    def show_lmstudio(self) -> None:
-        self._switch_tab("lmstudio")
+    @on(Button.Pressed, "#tab-safetensors")
+    def show_safetensors(self) -> None:
+        self._switch_tab("safetensors")
     
     @on(Input.Changed, "#model-search")
     def on_search_changed(self, event: Input.Changed) -> None:
@@ -1774,12 +1802,12 @@ class SetupScreen(Screen):
 
         if self.selected_sabha and len(self.selected_models) >= len(self.selected_sabha.model_slots):
             # Create ParishadConfig from selections
-            # Store source (huggingface/ollama/lmstudio) for backend mapping
+            # Store format (gguf/mlx/safetensors) for backend mapping
             primary_model = list(self.selected_models.values())[0].shortcut if self.selected_models else "qwen2.5:1.5b"
             
             new_config = ParishadConfig(
                 sabha=self.selected_sabha.id,
-                backend=self.current_source,  # Source: huggingface/ollama/lmstudio
+                backend=self.current_source,  # Format: gguf/mlx/safetensors
                 model=primary_model,  # Model ID for ModelManager
                 cwd=str(Path.cwd())
             )
@@ -2463,6 +2491,52 @@ class ParishadApp(App):
                 )
                 self.council = None
                 return
+            except Exception as e:
+                # Production-grade error handling with specific VRAM/GPU messages
+                error_msg = str(e)
+                self.log_message(f"[red]✗ Error loading Sabha council:[/red]\n")
+                
+                # Check for specific error types and provide helpful messages
+                if "out of memory" in error_msg.lower() or "cuda" in error_msg.lower():
+                    self.log_message(
+                        "[yellow]⚠️  GPU Memory Issue Detected[/yellow]\n"
+                        "[dim]The selected model is too large for your GPU.[/dim]\n"
+                        "[dim]\n"
+                        "[bold]Solutions:[/bold]\n"
+                        "[dim]  1. Try a smaller model (0.5B, 1B, or 3B parameters)[/dim]\n"
+                        "[dim]  2. Use more aggressive quantization (Q2, Q3, Q4)[/dim]\n"
+                        "[dim]  3. Close other GPU-intensive applications[/dim]\n"
+                        "[dim]  4. Check VRAM usage: nvidia-smi[/dim]\n"
+                        "[dim]\n"
+                        "[dim]Use /setup to select a different model.[/dim]\n"
+                    )
+                elif "not found" in error_msg.lower() or "no such file" in error_msg.lower():
+                    self.log_message(
+                        "[yellow]⚠️  Model Not Found[/yellow]\n"
+                        "[dim]The model could not be located on this system.[/dim]\n"
+                        "[dim]\n"
+                        "[bold]Solutions:[/bold]\n"
+                        "[dim]  1. Run /setup to download the model[/dim]\n"
+                        "[dim]  2. Check: parishad models list[/dim]\n"
+                        "[dim]  3. Download manually: parishad download <model>[/dim]\n"
+                    )
+                elif "no gpu" in error_msg.lower() or "cuda not available" in error_msg.lower():
+                    self.log_message(
+                        "[yellow]⚠️  No GPU Detected[/yellow]\n"
+                        "[dim]This project requires a CUDA-capable GPU.[/dim]\n"
+                        "[dim]\n"
+                        "[bold]Requirements:[/bold]\n"
+                        "[dim]  • NVIDIA GPU with CUDA support[/dim]\n"
+                        "[dim]  • Updated GPU drivers[/dim]\n"
+                        "[dim]  • PyTorch with CUDA installed[/dim]\n"
+                        "[dim]\n"
+                        "[dim]Check: nvidia-smi[/dim]\n"
+                    )
+                else:
+                    self.log_message(f"[red]{type(e).__name__}: {error_msg}[/red]\n")
+                
+                self.council = None
+                return
             
             if self.council:
                 self.log_message(
@@ -2707,6 +2781,80 @@ class ParishadApp(App):
         chat.write(message)
         chat.scroll_end()
     
+    def _sanitize_answer_text(self, text: str) -> str:
+        """
+        Extract clean text from any format: plain text, JSON, malformed JSON, etc.
+        
+        Uses aggressive parsing to handle all model quirks.
+        """
+        import json
+        import re
+        
+        if not text or not text.strip():
+            return text
+        
+        original = text
+        text = text.strip()
+        
+        # Strategy 1: If it's plain text (no JSON structure), return as-is
+        if not any(marker in text.lower() for marker in ['{', '[', 'json', '"final_answer"', '"answer"']):
+            return text
+        
+        # Strategy 2: Try to extract from JSON structure
+        # Normalize malformed JSON first
+        normalized = text
+        
+        # Remove 'json' prefix: json { -> {
+        normalized = re.sub(r'^json\s*', '', normalized, flags=re.IGNORECASE)
+        
+        # Fix parentheses: (...) -> {...}
+        if normalized.startswith('(') and ')' in normalized:
+            normalized = normalized.replace('(', '{', 1)
+            normalized = normalized[::-1].replace(')', '}', 1)[::-1]  # Replace last )
+        
+        # Fix key names with spaces: "final answer" -> "final_answer"
+        normalized = re.sub(r'"([a-z]+)\s+([a-z]+)"(\s*):', r'"\1_\2"\3:', normalized, flags=re.IGNORECASE)
+        
+        # Fix period separators: ". " -> ", "
+        normalized = re.sub(r'"\s*\.\s*"', '", "', normalized)
+        
+        # Try to parse normalized JSON
+        try:
+            data = json.loads(normalized)
+            if isinstance(data, dict):
+                # Priority extraction
+                for key in ["final_answer", "answer", "response", "content", "text", "result"]:
+                    if key in data and isinstance(data[key], str) and len(data[key]) > 10:
+                        return data[key]
+        except:
+            pass
+        
+        # Strategy 3: Regex extraction from JSON-like text
+        patterns = [
+            r'"final_answer"\s*:\s*"([^"]+)"',
+            r'"answer"\s*:\s*"([^"]+)"',
+            r'"response"\s*:\s*"([^"]+)"',
+            r'"content"\s*:\s*"([^"]+)"',
+        ]
+        
+        for pattern in patterns:
+            match = re.search(pattern, text, re.IGNORECASE | re.DOTALL)
+            if match:
+                return match.group(1)
+        
+        # Strategy 4: Find longest quoted string (likely the answer)
+        quoted = re.findall(r'"([^"]{50,})"', text)
+        if quoted:
+            return max(quoted, key=len)
+        
+        # Strategy 5: Extract sentence-like text
+        sentences = re.findall(r'[A-Z][^.!?]{20,}[.!?]', text)
+        if sentences:
+            return ' '.join(sentences[:3])
+        
+        # Last resort: return original
+        return original
+    
     @on(Input.Submitted)
     def handle_input(self, event: Input.Submitted) -> None:
         """Handle user input submission with parsing layer."""
@@ -2786,6 +2934,80 @@ class ParishadApp(App):
         # See: docs/TUI_FREEZE_WINDOWS.md for full technical explanation.
         self._processing_query = True
         
+        # Check VRAM compatibility before starting (like LM Studio)
+        vram_warning_shown = False
+        try:
+            import json
+            config_json_path = Path.home() / ".parishad" / "config.json"
+            if config_json_path.exists():
+                with open(config_json_path) as f:
+                    user_config_data = json.load(f)
+                
+                session = user_config_data.get("session", {})
+                model_key = session.get("model")
+                
+                if model_key:
+                    # Simple file size based check as fallback
+                    available_models = user_config_data.get("models", {})
+                    if model_key in available_models:
+                        size_bytes = available_models[model_key].get("size_bytes", 0)
+                        size_gb = size_bytes / 1e9
+                        
+                        # Get VRAM - smart check with CPU/GPU offloading intelligence
+                        try:
+                            import torch
+                            if torch.cuda.is_available():
+                                vram_gb = torch.cuda.get_device_properties(0).total_memory / 1e9
+                                
+                                # Estimate: file size * 1.8 for loaded model + KV cache
+                                estimated_usage = size_gb * 1.8
+                                usage_percent = (estimated_usage / vram_gb) * 100
+                                
+                                # Smart warnings based on CPU/GPU offloading behavior
+                                if usage_percent <= 100:
+                                    # Model fits entirely in GPU - optimal performance
+                                    if size_gb >= 1.5:
+                                        self.log_message(f"\n[green]✓ Model fits in GPU: {size_gb:.1f}GB model | {vram_gb:.1f}GB VRAM[/green]")
+                                        self.log_message(f"[dim]Expected: Fast inference (GPU-only)[/dim]\n")
+                                        vram_warning_shown = True
+                                        
+                                elif usage_percent <= 150:
+                                    # Slight CPU offload - still good performance
+                                    gpu_portion = int((vram_gb / estimated_usage) * 100)
+                                    cpu_portion = 100 - gpu_portion
+                                    self.log_message(f"\n[cyan]ℹ CPU+GPU Offload: {size_gb:.1f}GB model | {vram_gb:.1f}GB VRAM ({usage_percent:.0f}%)[/cyan]")
+                                    self.log_message(f"[cyan]Split: ~{gpu_portion}% GPU, ~{cpu_portion}% CPU RAM[/cyan]")
+                                    self.log_message(f"[dim]Expected: Good performance with minimal slowdown (2-5 min/query)[/dim]\n")
+                                    vram_warning_shown = True
+                                    
+                                elif usage_percent <= 250:
+                                    # Moderate CPU offload - noticeable slowdown
+                                    gpu_portion = int((vram_gb / estimated_usage) * 100)
+                                    cpu_portion = 100 - gpu_portion
+                                    self.log_message(f"\n[yellow]⚠ Significant CPU Offload: {size_gb:.1f}GB model | {vram_gb:.1f}GB VRAM ({usage_percent:.0f}%)[/yellow]")
+                                    self.log_message(f"[yellow]Split: ~{gpu_portion}% GPU, ~{cpu_portion}% CPU RAM[/yellow]")
+                                    self.log_message(f"[yellow]Expected: Moderate slowdown (10-20 min/query)[/yellow]\n")
+                                    vram_warning_shown = True
+                                    
+                                else:
+                                    # Heavy CPU offload - significant slowdown
+                                    gpu_portion = int((vram_gb / estimated_usage) * 100)
+                                    cpu_portion = 100 - gpu_portion
+                                    self.log_message(f"\n[red]⚠ Heavy CPU Offload: {size_gb:.1f}GB model | {vram_gb:.1f}GB VRAM ({usage_percent:.0f}%)[/red]")
+                                    self.log_message(f"[red]Split: ~{gpu_portion}% GPU, ~{cpu_portion}% CPU RAM[/red]")
+                                    self.log_message(f"[red]Expected: Very slow inference (30+ min/query)[/red]")
+                                    self.log_message(f"[dim]Smaller models (0.5-3B) recommended for better experience[/dim]\n")
+                                    vram_warning_shown = True
+                        except Exception as vram_ex:
+                            # Silently skip VRAM check if torch unavailable (CPU-only or torch not installed)
+                            pass
+        except Exception as e:
+            # Log error but don't block execution
+            self.log_message(f"[dim]⚠ VRAM check failed: {e}[/dim]")
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"VRAM check error: {e}", exc_info=True)
+        
         # Save query to temp file for subprocess to read
         query_file = Path.home() / ".parishad" / "temp_query.txt"
         result_file = Path.home() / ".parishad" / "temp_result.json"
@@ -2821,14 +3043,68 @@ try:
     # Import and run inference
     from parishad.orchestrator.engine import Parishad
     from parishad.config.user_config import load_user_config
+    import sys
+    import os
+    
+    # Add parent dir to path to import load_parishad_config
+    sys.path.insert(0, os.path.dirname(__file__))
     
     user_cfg = load_user_config()
     
+    # Load config to get pipeline name from Sabha selection
+    # Create debug log file for config loading
+    debug_log = Path.home() / ".parishad" / "sabha_config_debug.log"
+    
+    config_name = "core"  # Default fallback
+    try:
+        # Import the function from the same file
+        config_file = Path.home() / ".parishad" / "config.json"
+        debug_log.write_text(f"Reading config from: {{config_file}}\\n", encoding="utf-8")
+        
+        if config_file.exists():
+            import json
+            with open(config_file, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                session = data.get("session", {{}})
+                sabha = session.get("sabha", "madhyam")
+                
+                debug_msg = debug_log.read_text(encoding="utf-8")
+                debug_msg += f"Found sabha: {{sabha}}\\n"
+                debug_log.write_text(debug_msg, encoding="utf-8")
+                
+                # Map sabha to pipeline config
+                from parishad.config.modes import get_pipeline_name
+                config_name = get_pipeline_name(sabha)
+                
+                debug_msg = debug_log.read_text(encoding="utf-8")
+                debug_msg += f"Mapped to config: {{config_name}}\\n"
+                debug_log.write_text(debug_msg, encoding="utf-8")
+        else:
+            debug_msg = debug_log.read_text(encoding="utf-8")
+            debug_msg += f"Config file not found, using default: {{config_name}}\\n"
+            debug_log.write_text(debug_msg, encoding="utf-8")
+    except Exception as e:
+        import traceback
+        debug_msg = debug_log.read_text(encoding="utf-8") if debug_log.exists() else ""
+        debug_msg += f"ERROR loading config: {{str(e)}}\\n{{traceback.format_exc()}}\\n"
+        debug_msg += f"Using default config: {{config_name}}\\n"
+        debug_log.write_text(debug_msg, encoding="utf-8")
+    
+    # Log final config being used
+    debug_msg = debug_log.read_text(encoding="utf-8")
+    debug_msg += f"\\nFINAL CONFIG TO USE: {{config_name}}\\n"
+    debug_log.write_text(debug_msg, encoding="utf-8")
+    
     council = Parishad(
-        config="core",
+        config=config_name,
         profile=user_cfg.default_profile,
         mode=user_cfg.default_mode,
     )
+    
+    # Confirm Parishad initialized with correct config
+    debug_msg = debug_log.read_text(encoding="utf-8")
+    debug_msg += f"Parishad initialized with config: {{council.config_name}}\\n"
+    debug_log.write_text(debug_msg, encoding="utf-8")
     
     status_file.write_text("running", encoding="utf-8")
     
@@ -2878,30 +3154,71 @@ except Exception as e:
         )
         
         # Poll for result file
+        poll_count = 0
+        max_polls = 2400  # 20 minutes max (2400 * 0.5s = 1200s) - needed for 3B models on 4GB VRAM
+        
         def poll_subprocess_result():
+            nonlocal poll_count
+            poll_count += 1
+            
+            # Check if subprocess is still alive
+            if self._subprocess.poll() is not None and not result_file.exists():
+                # Subprocess died without creating result file
+                exit_code = self._subprocess.poll()
+                self.log_message(f"\n[red]✗ Subprocess crashed (exit code: {exit_code})[/red]")
+                self._processing_query = False
+                return
+            
+            # Check timeout
+            if poll_count > max_polls:
+                self.log_message("\n[red]✗ Query timed out after 20 minutes[/red]")
+                try:
+                    self._subprocess.terminate()
+                except:
+                    pass
+                self._processing_query = False
+                return
+            
             # Check if result file exists (inference complete)
             if result_file.exists():
                 try:
-                    result = json.loads(result_file.read_text(encoding="utf-8"))
+                    result_text = result_file.read_text(encoding="utf-8")
+                    result = json.loads(result_text)
+                    
+                    # Write to output.json in current workspace for user reference
+                    output_file = self.cwd / "output.json"
+                    try:
+                        if result.get("success") and result.get("final_answer"):
+                            # Sanitize answer to extract clean text from JSON if needed
+                            clean_answer = self._sanitize_answer_text(result['final_answer'])
+                            output_file.write_text(clean_answer, encoding="utf-8")
+                    except Exception as e:
+                        # Also log if this fails
+                        import traceback
+                        self.log_message(f"[dim]⚠ Could not write output.json: {e}[/dim]")
                     
                     if result.get("success"):
                         # Display the result
                         self.log_message(f"\n[dim]━━━ Sabha Activity ({result.get('roles')} roles, {result.get('tokens')} tokens) ━━━[/dim]")
                         
                         if result.get("final_answer"):
-                            self.log_message(f"\n[bold]👑 Raja's Answer:[/bold]\n{result['final_answer']}\n")
+                            answer = self._sanitize_answer_text(result['final_answer'])
+                            self.log_message(f"\n[bold]👑 Raja's Answer:[/bold]\n{answer}\n")
                         elif result.get("error"):
                             self.log_message(f"\n[red]Error: {result['error']}[/red]")
                         else:
                             self.log_message("\n[green]Query completed successfully![/green]")
                     else:
-                        self.log_message(f"\n[red]Error: {result.get('error')}[/red]\n[dim]{result.get('traceback', '')[:500]}...[/dim]")
+                        error_msg = result.get('error', 'Unknown error')
+                        traceback_msg = result.get('traceback', '')[:500]
+                        self.log_message(f"\n[red]Error: {error_msg}[/red]\n[dim]{traceback_msg}...[/dim]")
                     
                     # Cleanup temp files
                     for f in [result_file, status_file, script_file]:
                         try:
-                            f.unlink()
-                        except:
+                            if f.exists():
+                                f.unlink()
+                        except Exception as e:
                             pass
                     
                     self._processing_query = False
@@ -2910,7 +3227,11 @@ except Exception as e:
                     except:
                         pass
                     
-                except Exception:
+                except json.JSONDecodeError as e:
+                    self.log_message(f"\n[red]✗ Failed to parse result: {e}[/red]")
+                    self._processing_query = False
+                except Exception as e:
+                    self.log_message(f"\n[red]✗ Error reading result: {e}[/red]")
                     self._processing_query = False
             else:
                 # Keep polling until result is ready
@@ -3010,6 +3331,8 @@ except Exception as e:
             # Display the final answer from Raja
             if trace.final_answer:
                 answer = trace.final_answer.final_answer
+                # Sanitize answer to remove any JSON formatting that may have leaked through
+                answer = self._sanitize_answer_text(answer)
                 self.log_message(f"\n[bold]👑 Raja's Answer:[/bold]\n{answer}\n")
             elif trace.error:
                 self.log_message(f"\n[red]Error: {trace.error}[/red]")
@@ -3176,6 +3499,8 @@ except Exception as e:
         # Display the final answer from Raja
         if trace.final_answer:
             answer = trace.final_answer.final_answer
+            # Sanitize answer to remove any JSON formatting that may have leaked through
+            answer = self._sanitize_answer_text(answer)
             self.log_message(f"\n[bold]👑 Raja's Answer:[/bold]\n{answer}\n")
         elif trace.error:
             self.log_message(f"\n[red]Error: {trace.error}[/red]")
@@ -3289,6 +3614,8 @@ except Exception as e:
         # Display the final answer from Raja
         if trace.final_answer:
             answer = trace.final_answer.final_answer
+            # Sanitize answer to remove any JSON formatting that may have leaked through
+            answer = self._sanitize_answer_text(answer)
             self.log_message(f"\n[bold]👑 Raja's Answer:[/bold]\n{answer}\n")
         elif trace.error:
             self.log_message(f"\n[red]Error: {trace.error}[/red]")
@@ -3769,6 +4096,16 @@ except Exception as e:
         
         # Otherwise, require double press to exit
         if self.ctrl_c_pressed:
+            # Kill subprocess if still running
+            if self._subprocess and self._subprocess.poll() is None:
+                try:
+                    self._subprocess.terminate()
+                    self._subprocess.wait(timeout=2)
+                except:
+                    try:
+                        self._subprocess.kill()
+                    except:
+                        pass
             self.exit()
         else:
             self.ctrl_c_pressed = True

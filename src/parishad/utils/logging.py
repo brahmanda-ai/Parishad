@@ -29,23 +29,30 @@ def truncate_for_log(text: str, max_length: int = DEFAULT_TRUNCATE_LENGTH) -> st
 
 
 def setup_logging(
-    level: str = "INFO",
+    level: str = "INFO",  # Changed to INFO for production debugging
     log_file: Optional[str] = None,
     format_string: Optional[str] = None
 ) -> None:
     """
-    Set up logging for Parishad.
+    Set up logging for Parishad with production-grade formatting.
     
     Args:
-        level: Logging level (DEBUG, INFO, WARNING, ERROR)
+        level: Logging level (DEBUG, INFO, WARNING, ERROR)  - Default: INFO
         log_file: Optional file path to write logs to
         format_string: Optional custom format string
     """
     if format_string is None:
-        format_string = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        # Production-grade format with function name and line number
+        format_string = (
+            "%(asctime)s | %(levelname)-8s | %(name)-25s | "
+            "%(funcName)-18s:%(lineno)-4d | %(message)s"
+        )
     
-    # Create formatter
-    formatter = logging.Formatter(format_string)
+    # Create formatter with detailed datetime
+    formatter = logging.Formatter(
+        format_string,
+        datefmt="%Y-%m-%d %H:%M:%S"
+    )
     
     # Get root logger for parishad
     logger = logging.getLogger("parishad")

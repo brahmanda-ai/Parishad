@@ -577,6 +577,67 @@ class ParishadEngine:
         
         return role_instance
     
+    def _reduce_pipeline_for_small_models(
+        self,
+        role_specs: list[RoleSpec],
+        reduction_level: str,
+        model_params: float
+    ) -> list[RoleSpec]:
+        """
+        Intelligently reduce pipeline roles for small models.
+        
+        Preserves the thinking structure but uses only the critical roles
+        that small models can actually handle.
+        
+        Args:
+            role_specs: Original pipeline role specifications
+            reduction_level: "minimal" (2 roles) or "lite" (3 roles)
+            model_params: Model parameter count in billions
+            
+        Returns:
+            Reduced list of role specifications
+        """
+        if reduction_level == "minimal":
+            # For 0.5-1.5B: Use Sainik (Generator) → Raja (Finalizer)
+            # Sainik generates the candidate, Raja finalizes it
+            critical_roles = ["sainik", "raja"]
+            logger.info(
+                f"🔧 Reducing pipeline for {model_params}B model: "
+                f"Sainik (Generate) → Raja (Finalize)"
+            )
+            
+        elif reduction_level == "lite":
+            # For 1.5-3B: Use Darbari → Sainik → Raja
+            # Darbari analyzes task (simpler than planning), Sainik executes, Raja finalizes
+            critical_roles = ["darbari", "sainik", "raja"]
+            logger.info(
+                f"🔧 Reducing pipeline for {model_params}B model: "
+                f"Darbari (Analyze) → Sainik (Execute) → Raja (Finalize)"
+            )
+        else:
+            # Full pipeline - no reduction
+            return role_specs
+        
+        # Filter to keep only critical roles
+        reduced_specs = []
+        for spec in role_specs:
+            if spec.name.lower() in critical_roles:
+                reduced_specs.append(spec)
+        
+        # Ensure we got the roles we expected
+        if len(reduced_specs) != len(critical_roles):
+            logger.warning(
+                f"Role reduction incomplete: expected {len(critical_roles)} roles, "
+                f"got {len(reduced_specs)}. Using full pipeline as fallback."
+            )
+            return role_specs
+        
+        logger.info(
+            f"✅ Pipeline reduced from {len(role_specs)} to {len(reduced_specs)} roles"
+        )
+        
+        return reduced_specs
+    
     def _run_role(
         self,
         role: Role,
@@ -611,6 +672,29 @@ class ParishadEngine:
         duration_ms = int((time.perf_counter() - start_time) * 1000)
         output.metadata.duration_ms = duration_ms
         
+        # ===== DEBUG LOGGING: Show exactly what each role produces =====
+        logger.info(f"🔷 ROLE {role_name.upper()} EXECUTED:")
+        logger.info(f"   Status: {output.status}")
+        logger.info(f"   Tokens: {output.metadata.tokens_used}, Duration: {duration_ms}ms")
+        
+        # Log output preview (critical for debugging)
+        if output.core_output:
+            # For Raja, show final_answer specifically
+            if role_name.lower() == "raja":
+                final_ans = output.core_output.get("final_answer", "")
+                preview = str(final_ans)[:200] if final_ans else "(empty)"
+                logger.info(f"   📜 RAJA FINAL_ANSWER: {preview}")
+            else:
+                # For other roles, show key fields
+                core_preview = str(output.core_output)[:300]
+                logger.info(f"   Output preview: {core_preview}")
+        else:
+            logger.warning(f"   ⚠️ No core_output from {role_name}!")
+        
+        if output.error:
+            logger.error(f"   ❌ Error: {output.error}")
+        # ===== END DEBUG LOGGING =====
+        
         # Log completion at appropriate level
         logger.debug(
             f"Role {role_name} completed: status={output.status}, "
@@ -644,9 +728,27 @@ class ParishadEngine:
             for ctx_field, output_field in context_updates.items():
                 if output_field == "core_output":
                     setattr(ctx, ctx_field, output.core_output)
+                    # DEBUG: Log the update
+                    debug_preview = str(output.core_output)[:100] if output.core_output else "None"
+                    logger.info(f"   📝 Set ctx.{ctx_field} = core_output ({debug_preview}...)")
                 else:
                     setattr(ctx, ctx_field, output.core_output.get(output_field))
                 logger.debug(f"Updated context.{ctx_field} from {role_name}")
+        else:
+            logger.warning(f"   ⚠️ Context NOT updated for {role_name}: status={output.status}, updates={context_updates}")
+        
+        # DEBUG: Write to file for visibility
+        try:
+            debug_path = Path.home() / ".parishad" / "pipeline_debug.log"
+            with open(debug_path, "a", encoding="utf-8") as f:
+                f.write(f"ROLE: {role_name}, status={output.status}\n")
+                if output.core_output:
+                    co_str = str(output.core_output)[:300]
+                    f.write(f"  core_output: {co_str}\n")
+                if context_updates:
+                    f.write(f"  context_updates: {context_updates}\n")
+        except:
+            pass
         
         # Phase 13: File Writing Capability
         # Check if Sainik wants to write a file
@@ -748,10 +850,84 @@ class ParishadEngine:
         query_preview = query[:100] + "..." if len(query) > 100 else query
         logger.info(f"Parishad run started: id={ctx.query_id}, config={config}, budget={budget}")
         
+        # ====================================================================
+        # INTELLIGENT ROLE REDUCTION: Adapt pipeline to model capability
+        # ====================================================================
+        from ..models.size_detection import (
+            get_model_params_from_catalog,
+            get_role_reduction_level,
+            get_optimal_temperature,
+            get_optimal_max_tokens,
+            log_model_optimization_info,
+            load_model_catalog
+        )
+        
+        # Get the model being used (check BIG slot first, then MID, then SMALL)
+        model_id = None
+        model_params = 0.0
+        role_reduction = "full"
+        
+        for slot_name in ["big", "mid", "small"]:
+            if slot_name in self.model_config.slots:
+                slot_cfg = self.model_config.slots[slot_name]
+                model_id = slot_cfg.model_id
+                break
+        
+        if model_id:
+            # Load catalog to get parameter count
+            try:
+                catalog = load_model_catalog()
+                model_params = get_model_params_from_catalog(model_id, catalog)
+                
+                # Log optimization info
+                if model_params > 0:
+                    log_model_optimization_info(model_id, model_params)
+                    role_reduction = get_role_reduction_level(model_params)
+                    
+                    # Adjust temperature for model size
+                    optimal_temp = get_optimal_temperature(model_params, "general")
+                    optimal_max_tokens = get_optimal_max_tokens(model_params)
+                    
+                    # Update all role temperatures globally
+                    self.darbari.temperature = optimal_temp
+                    self.majumdar.temperature = optimal_temp
+                    self.sainik.temperature = optimal_temp
+                    self.prerak.temperature = optimal_temp
+                    self.raja.temperature = optimal_temp
+                    
+                    # Update max tokens for Raja (final output)
+                    self.raja.max_tokens = min(optimal_max_tokens, self.raja.max_tokens)
+                    
+                    logger.info(
+                        f"📊 Model optimization: {model_params}B params, "
+                        f"temp={optimal_temp:.2f}, role_level={role_reduction}"
+                    )
+                    
+                    # Log role reduction strategy
+                    if role_reduction == "minimal":
+                        logger.warning(
+                            f"⚡ MINIMAL ORCHESTRATION for {model_params}B model: "
+                            "Using only 2 critical roles (Plan → Answer) for stability"
+                        )
+                    elif role_reduction == "lite":
+                        logger.info(
+                            f"🔧 LITE ORCHESTRATION for {model_params}B model: "
+                            "Using 3 key roles (Understand → Plan → Answer)"
+                        )
+            except Exception as e:
+                logger.warning(f"Could not optimize for model size: {e}")
+        
         try:
             # Load pipeline configuration
             try:
                 role_specs = self._load_pipeline(config)
+                
+                # Apply intelligent role reduction for small models
+                if role_reduction in ("minimal", "lite"):
+                    role_specs = self._reduce_pipeline_for_small_models(
+                        role_specs, role_reduction, model_params
+                    )
+                    
             except InvalidPipelineConfigError as e:
                 logger.error(f"Invalid pipeline configuration: {e}")
                 raise RuntimeError(f"Pipeline configuration error: {e}") from e
@@ -947,18 +1123,119 @@ class ParishadEngine:
     ) -> Trace:
         """Build execution trace from context."""
         final_answer = None
+        
+        # ===== DEBUG: Show context state for final answer extraction =====
+        logger.info("=" * 60)
+        logger.info("📋 BUILDING TRACE - Final Answer Extraction")
+        logger.info("=" * 60)
+        logger.info(f"   ctx.final_answer present: {ctx.final_answer is not None}")
+        if ctx.final_answer:
+            fa_preview = str(ctx.final_answer.get('final_answer', ''))[:150]
+            logger.info(f"   ctx.final_answer preview: {fa_preview}")
+        logger.info(f"   ctx.candidate present: {ctx.candidate is not None}")
+        if ctx.candidate:
+            cand_preview = str(ctx.candidate.get('content', ''))[:150]
+            logger.info(f"   ctx.candidate preview: {cand_preview}")
+        logger.info(f"   Total role_outputs: {len(ctx.role_outputs)}")
+        for ro in ctx.role_outputs:
+            logger.info(f"      - {ro.role}: status={ro.status}")
+        # ===== END DEBUG =====
+        
+        # Primary: Use Raja's final_answer if available
         if ctx.final_answer:
             final_answer = FinalAnswer.from_dict(ctx.final_answer)
-        elif ctx.candidate:
-            # If no Raja in pipeline, use Sainik's output as final answer
-            final_answer = FinalAnswer(
-                final_answer=ctx.candidate.get("content", ""),
-                answer_type=ctx.candidate.get("content_type", "text"),
-                confidence=ctx.candidate.get("confidence", 0.8),
-                rationale="\n".join(ctx.candidate.get("reasoning_trace", [])) if isinstance(ctx.candidate.get("reasoning_trace"), list) else str(ctx.candidate.get("reasoning_trace", "")),
-                caveats=ctx.candidate.get("warnings", []),
-                code_block=ctx.candidate.get("content", "") if ctx.candidate.get("content_type") == "code" else None,
-            )
+            logger.info(f"   ✅ Using Raja's final_answer")
+            # Check if the final_answer is actually empty
+            if not final_answer.final_answer or not final_answer.final_answer.strip():
+                logger.warning("   ⚠️ ctx.final_answer has empty final_answer field, looking for fallback")
+                final_answer = None
+        
+        # Fallback 1: Use Sainik's candidate if Raja failed
+        if not final_answer and ctx.candidate:
+            content = ctx.candidate.get("content", "")
+            if content and content.strip():
+                logger.info(f"   📦 FALLBACK 1: Using Sainik's candidate content")
+                logger.info(f"   Content preview: {content[:150]}")
+                final_answer = FinalAnswer(
+                    final_answer=content,
+                    answer_type=ctx.candidate.get("content_type", "text"),
+                    confidence=ctx.candidate.get("confidence", 0.8),
+                    rationale="\n".join(ctx.candidate.get("reasoning_trace", [])) if isinstance(ctx.candidate.get("reasoning_trace"), list) else str(ctx.candidate.get("reasoning_trace", "")),
+                    caveats=ctx.candidate.get("warnings", []),
+                    code_block=content if ctx.candidate.get("content_type") == "code" else None,
+                )
+        
+        # Fallback 2: Extract from SPECIFIC roles only (not any random role's raw_output!)
+        # This prevents picking up Darbari's task_spec as the "answer"
+        if not final_answer and ctx.role_outputs:
+            logger.info(f"   🔍 FALLBACK 2: Searching role outputs for usable answer...")
+            
+            # PRIORITY ORDER: Raja > Sainik > (nothing else - other roles don't produce answers)
+            for role_output in ctx.role_outputs:
+                role_name = role_output.role.lower() if role_output.role else ""
+                core = role_output.core_output
+                
+                if not core:
+                    continue
+                
+                # Raja: Look for final_answer or raw_output (Raja's raw output IS the answer)
+                if role_name == "raja":
+                    for field in ["final_answer", "raw_output"]:
+                        value = core.get(field, "")
+                        if value and isinstance(value, str) and value.strip():
+                            # Skip if it looks like a raw JSON task spec (not an answer)
+                            if value.strip().startswith('{"problem"') or value.strip().startswith('```json'):
+                                logger.warning(f"   ⚠️ Raja's {field} looks like task_spec JSON, skipping")
+                                continue
+                            logger.info(f"   📦 FALLBACK 2: Using {field} from Raja")
+                            final_answer = FinalAnswer(
+                                final_answer=value.strip()[:2000],
+                                answer_type="text",
+                                confidence=0.5,
+                                rationale=f"Fallback from Raja's {field}",
+                            )
+                            break
+                    if final_answer:
+                        break
+                
+                # Sainik: Look for content (Sainik's output is the implementation)
+                elif role_name == "sainik":
+                    content = core.get("content", "")
+                    if content and isinstance(content, str) and content.strip():
+                        # Skip if it looks like a raw JSON task spec
+                        if content.strip().startswith('{"problem"') or content.strip().startswith('```json'):
+                            logger.warning(f"   ⚠️ Sainik's content looks like task_spec JSON, skipping")
+                            continue
+                        logger.info(f"   📦 FALLBACK 2: Using content from Sainik")
+                        final_answer = FinalAnswer(
+                            final_answer=content.strip()[:2000],
+                            answer_type="text",
+                            confidence=0.5,
+                            rationale="Fallback from Sainik's content",
+                        )
+                        break
+            
+            if not final_answer:
+                logger.error("   ❌ FALLBACK 2: No usable answer found in any role!")
+        
+        # Write debug info to file for visibility
+        try:
+            debug_path = Path.home() / ".parishad" / "pipeline_debug.log"
+            with open(debug_path, "a", encoding="utf-8") as f:
+                f.write(f"\n{'='*60}\n")
+                f.write(f"TRACE BUILD: {datetime.now()}\n")
+                f.write(f"ctx.final_answer: {ctx.final_answer is not None}\n")
+                if ctx.final_answer:
+                    fa_val = str(ctx.final_answer.get('final_answer', ''))[:200]
+                    f.write(f"  final_answer value: {fa_val}\n")
+                f.write(f"ctx.candidate: {ctx.candidate is not None}\n")
+                f.write(f"Roles executed: {[ro.role for ro in ctx.role_outputs]}\n")
+                if final_answer:
+                    f.write(f"FINAL ANSWER: {final_answer.final_answer[:200]}\n")
+                else:
+                    f.write(f"FINAL ANSWER: None (will show 'No answer generated')\n")
+        except Exception as e:
+            logger.warning(f"Could not write debug log: {e}")
         
         return Trace(
             query_id=ctx.query_id,
@@ -1005,6 +1282,15 @@ class ParishadEngine:
             # Extract the final answer text
             if trace.final_answer:
                 output_content = trace.final_answer.final_answer
+                
+                # Final safety: detect degenerate output before saving
+                from ..utils.output_sanitizer import detect_degenerate_output
+                if output_content and detect_degenerate_output(output_content):
+                    logger.warning("Degenerate output detected in final answer at save time, using fallback")
+                    output_content = (
+                        "The model produced a repetitive response for this query. "
+                        "Please try rephrasing your question or using a larger model."
+                    )
             else:
                 output_content = "No answer generated"
             
@@ -1088,11 +1374,69 @@ class Parishad:
                     model_path = session.get("model")
                     backend_name = session.get("backend", "llama_cpp")
                     
+                    # HONOR USER'S MODEL SELECTION
+                    # Only auto-select if no model is explicitly chosen
+                    user_selected_model = model_path  # Save user's choice
+                    
+                    # For fast mode, only auto-optimize if user didn't select a model
+                    if self.config_name == "fast" and not user_selected_model:
+                        available_models = user_config_data.get("models", {})
+                        best_model = None
+                        best_size = 0
+                        
+                        # Find best model ~1.5B params (1.0-1.8GB file size)
+                        # Avoid <1B (too weak) and >2B (too slow)
+                        for model_key, model_info in available_models.items():
+                            if model_info.get("format") == "gguf" and model_info.get("source") in ["gguf", "local"]:
+                                size = model_info.get("size_bytes", 0)
+                                size_gb = size / 1e9
+                                # Target 1.0-1.8GB models (around 1.5B params) - good balance
+                                if 1.0 <= size_gb <= 1.8:
+                                    if size > best_size:  # Want largest in this range (1.5B better than 1B)
+                                        best_size = size
+                                        best_model = model_key
+                        
+                        if best_model:
+                            model_path = best_model
+                            # Aggressive optimization for fast mode
+                            model_settings["n_ctx"] = 2048  # Small context for fast loading
+                            model_settings["n_gpu_layers"] = -1  # All layers on GPU
+                            model_settings["n_batch"] = 512  # Smaller batches
+                            logger.info(f"Fast mode: Auto-selected {best_model} ({best_size / 1e9:.2f}GB) with n_ctx=2048")
+                    elif user_selected_model:
+                        logger.info(f"Using user-selected model: {user_selected_model}")
+                    
+                    if model_path:
+                        # CRITICAL: Resolve model key to actual file path
+                        # model_path is a KEY like "hf:bartowski/..." not a file path
+                        available_models = user_config_data.get("models", {})
+                        if model_path in available_models:
+                            actual_file_path = available_models[model_path].get("path")
+                            if not actual_file_path:
+                                logger.error(f"Model key '{model_path}' has no path in config")
+                                model_path = None
+                            else:
+                                logger.info(f"Resolved model key '{model_path}' -> '{actual_file_path}'")
+                                model_path = actual_file_path
+                                
+                                # Validate file exists
+                                model_file = Path(model_path)
+                                if not model_file.exists():
+                                    logger.error(f"Model file does not exist: {model_path}")
+                                    model_path = None
+                                elif not model_file.is_file():
+                                    logger.error(f"Model path is not a file: {model_path}")
+                                    model_path = None
+                        else:
+                            # Might be a direct path already, log warning
+                            logger.warning(f"Model '{model_path}' not found in models dict, treating as direct path")
+                    
                     if model_path:
                         # Create ModelConfig directly from config.json
                         from ..models.runner import SlotConfig, Backend
                         
-                        # Map all slots to the same model (Laghu Sabha approach)
+                        # CRITICAL: For fast mode, ALL roles must share the SAME slot config
+                        # This ensures only ONE model instance is loaded (not 3 separate instances)
                         slot_config = SlotConfig(
                             model_id=model_path,
                             backend=Backend(backend_name) if backend_name in [e.value for e in Backend] else Backend.LLAMA_CPP,
@@ -1104,16 +1448,20 @@ class Parishad:
                             }
                         )
                         
+                        # Use "single" slot - all roles will use this one slot
                         model_config = ModelConfig(
                             slots={
-                                "small": slot_config,
-                                "mid": slot_config,
-                                "big": slot_config,
+                                "single": slot_config,
+                                "small": slot_config,  # Alias to single
+                                "mid": slot_config,    # Alias to single
+                                "big": slot_config,    # Alias to single
                             }
                         )
-                        logger.debug(f"Loaded model config from config.json: {model_path}")
+                        logger.info(f"Loaded model for all slots: {model_path} (n_ctx={model_settings.get('n_ctx', 8192)})")
                 except Exception as e:
-                    logger.warning(f"Failed to load model config from config.json: {e}")
+                    logger.error(f"Failed to load model config from config.json: {e}")
+                    import traceback
+                    logger.debug(traceback.format_exc())
             
             # Fall back to models.yaml if config.json didn't provide model config
             if model_config is None:
