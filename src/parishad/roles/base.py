@@ -555,6 +555,18 @@ class Role(ABC):
                 tokens_from_backend = tokens_used
                 raw_output_for_debug = raw_output[:500]  # First 500 chars for debugging
                 model_id_from_backend = model_id
+                
+                # Detect and sanitize degenerate/repetitive model output
+                from ..utils.output_sanitizer import detect_degenerate_output, sanitize_output
+                if detect_degenerate_output(raw_output):
+                    logger.warning(
+                        f"Degenerate output detected from {self.name} "
+                        f"(preview: {raw_output[:100]}...)"
+                    )
+                    raw_output = sanitize_output(raw_output)
+                    if not raw_output:
+                        # Sanitizer couldn't recover anything meaningful
+                        raw_output = ""
             except (UnknownSlotError, ModelBackendError) as e:
                 # Normalize backend errors into RoleOutput
                 latency_ms = int((time.perf_counter() - start_time) * 1000)
@@ -672,25 +684,46 @@ class Role(ABC):
         """
         Extract JSON from LLM output.
         
-        Handles cases where JSON is wrapped in markdown code blocks.
+        Handles cases where JSON is wrapped in markdown code blocks,
+        has Python-style syntax, or needs sanitization.
         """
         import re
         
-        # Try to find JSON in code blocks first
-        json_pattern = r'```(?:json)?\s*\n?([\s\S]*?)\n?```'
-        matches = re.findall(json_pattern, text)
+        if not text or not text.strip():
+            logger.warning("Empty text provided to _extract_json")
+            return {"raw_output": "", "extraction_failed": True}
+        
+        original_text = text  # Keep for fallback
+        
+        # Strip thinking/reasoning tags that models sometimes output
+        # First remove complete tag pairs with content: <think>...</think>
+        text = re.sub(r'<(?:think|thinking|reasoning|rationale|analysis)>.*?</(?:think|thinking|reasoning|rationale|analysis)>', '', text, flags=re.DOTALL | re.IGNORECASE)
+        # Then remove any stray opening or closing tags
+        text = re.sub(r'</?(?:think|thinking|reasoning|rationale|analysis)>', '', text, flags=re.IGNORECASE)
+        
+        # First, try to strip markdown code blocks more aggressively
+        # Handle ```json\n{...}\n``` or ```\n{...}\n```
+        if text.strip().startswith('```'):
+            # Remove opening code fence
+            text = re.sub(r'^```(?:json|JSON)?\s*\n?', '', text.strip(), flags=re.MULTILINE)
+            # Remove closing code fence
+            text = re.sub(r'\n?```\s*$', '', text.strip(), flags=re.MULTILINE)
+        
+        # Try to parse the cleaned text as JSON
+        try:
+            return json.loads(text.strip())
+        except json.JSONDecodeError:
+            pass
+        
+        # Try to find JSON in code blocks (legacy approach)
+        json_pattern = r'```(?:json|JSON)?\s*\n?([\s\S]*?)\n?```'
+        matches = re.findall(json_pattern, text, re.IGNORECASE)
         
         for match in matches:
             try:
                 return json.loads(match.strip())
             except json.JSONDecodeError:
                 continue
-        
-        # Try to parse the entire text as JSON
-        try:
-            return json.loads(text.strip())
-        except json.JSONDecodeError:
-            pass
         
         # Try to find JSON-like structure
         brace_pattern = r'\{[\s\S]*\}'
@@ -700,13 +733,131 @@ class Role(ABC):
             try:
                 return json.loads(match)
             except json.JSONDecodeError:
-                # Fallback: Try ast.literal_eval for Python-style dicts (common in weaker models)
+                # Try JSON sanitization for common model quirks
+                sanitized = self._sanitize_json(match)
+                try:
+                    return json.loads(sanitized)
+                except json.JSONDecodeError:
+                    pass
+                
+                # Fallback: Try ast.literal_eval for Python-style dicts
                 try:
                     import ast
-                    # Only safe evaluation
                     return ast.literal_eval(match)
                 except (ValueError, SyntaxError):
                     continue
         
-        # Return raw text as fallback
-        return {"raw_output": text}
+        # Last resort: extract clean text for use as raw answer
+        clean_text = self._extract_clean_text(original_text)
+        
+        logger.warning(f"Failed to extract JSON, returning raw output. Preview: {original_text[:200]}")
+        return {"raw_output": clean_text, "extraction_failed": True}
+    
+    def _extract_clean_text(self, text: str) -> str:
+        """
+        Extract the most likely answer content from raw text when JSON parsing fails.
+        
+        Tries multiple strategies to find actual content vs meta-text/formatting.
+        """
+        import re
+        from ..utils.output_sanitizer import detect_degenerate_output, sanitize_output
+        
+        # First check for degenerate output and sanitize
+        if detect_degenerate_output(text):
+            sanitized = sanitize_output(text)
+            if sanitized:
+                return sanitized
+            # If sanitizer returned empty, continue with other strategies
+        
+        # Remove code fences
+        text = re.sub(r'```[a-zA-Z]*\n?', '', text)
+        
+        # Remove XML-style tags
+        text = re.sub(r'<[^>]+>', '', text)
+        
+        # Find longest quoted string (most likely the actual answer)
+        quoted_strings = re.findall(r'["\']([^"\']{50,})["\']', text)
+        if quoted_strings:
+            # Return the longest one
+            return max(quoted_strings, key=len)
+        
+        # Find longest sentence-like text (ends with period/question/exclamation)
+        sentences = re.findall(r'[A-Z][^.!?]*[.!?]', text)
+        if sentences and len(sentences) >= 2:
+            # Concatenate multiple sentences
+            return ' '.join(sentences[:5])  # First 5 sentences max
+        
+        # Just return cleaned text
+        text = text.strip()
+        # Remove common meta-phrases
+        meta_phrases = [
+            r'^(The )?final answer is:?\s*',
+            r'^Answer:?\s*',
+            r'^Response:?\s*',
+            r'^Output:?\s*',
+        ]
+        for phrase in meta_phrases:
+            text = re.sub(phrase, '', text, flags=re.IGNORECASE)
+        
+        return text.strip()
+    
+    def _sanitize_json(self, text: str) -> str:
+        """
+        Sanitize common JSON issues from model outputs.
+        
+        Handles: trailing commas, single quotes, unquoted keys, malformed syntax.
+        """
+        import re
+        
+        # Fix common weak model issues
+        # "key with spaces" -> "key_with_spaces"
+        text = re.sub(r'"([a-z]+) ([a-z]+)"(\s*):', r'"\1_\2"\3:', text, flags=re.IGNORECASE)
+        
+        # json {...} or json ({...}) -> {...}
+        text = re.sub(r'^json\s*\(?', '{', text, flags=re.IGNORECASE)
+        text = re.sub(r'\)$', '}', text)
+        
+        # Fix period separators between fields: ". "key" -> , "key"
+        text = re.sub(r'"\s*\.\s*"', '", "', text)
+        
+        # Replace single quotes with double quotes (simpler approach without lookbehinds)
+        # Replace 'key': patterns (dict keys)
+        text = re.sub(r"'([^']+)'(\s*):", r'"\1"\2:', text)
+        # Replace : 'value' patterns (string values)
+        text = re.sub(r":(\s*)'([^']*)'", r':\1"\2"', text)
+        
+        # Remove trailing commas before closing braces/brackets
+        text = re.sub(r',\s*([}\]])', r'\1', text)
+        
+        # Handle Python True/False/None
+        text = text.replace('True', 'true').replace('False', 'false').replace('None', 'null')
+        
+        return text
+    
+    def _extract_clean_text(self, text: str) -> str:
+        """
+        Extract clean text from model output for use when JSON parsing fails.
+        
+        Removes markdown formatting, code blocks, and common artifacts.
+        """
+        import re
+        
+        # Remove markdown code blocks
+        text = re.sub(r'```[\s\S]*?```', '', text)
+        
+        # Remove assistant markers if present (Llama-3 format)
+        text = re.sub(r'<\|start_header_id\|>assistant<\|end_header_id\|>\s*', '', text)
+        text = re.sub(r'<\|eot_id\|>', '', text)
+        
+        # Remove common JSON field prefixes that might be partial outputs
+        text = re.sub(r'^\s*"?final_answer"?\s*:\s*"?', '', text)
+        
+        # Clean up extra whitespace
+        text = ' '.join(text.split())
+        
+        # Limit length to reasonable answer size
+        if len(text) > 2000:
+            text = text[:2000] + "..."
+        
+        return text.strip()
+

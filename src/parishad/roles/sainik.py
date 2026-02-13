@@ -5,6 +5,7 @@ Combines functionality of Worker, WorkerCode, and WorkerText.
 """
 
 from typing import Any, Optional
+import logging
 
 from .base import (
     Role,
@@ -13,6 +14,8 @@ from .base import (
     Slot,
     Candidate,
 )
+
+logger = logging.getLogger(__name__)
 
 
 WORKER_SYSTEM_PROMPT = """You are Sainik, the Implementor in the Parishad council. Your job is to execute the plan created by Majumdar/Sar-Senapati and generate high-quality solutions.

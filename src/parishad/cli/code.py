@@ -2491,6 +2491,52 @@ class ParishadApp(App):
                 )
                 self.council = None
                 return
+            except Exception as e:
+                # Production-grade error handling with specific VRAM/GPU messages
+                error_msg = str(e)
+                self.log_message(f"[red]✗ Error loading Sabha council:[/red]\n")
+                
+                # Check for specific error types and provide helpful messages
+                if "out of memory" in error_msg.lower() or "cuda" in error_msg.lower():
+                    self.log_message(
+                        "[yellow]⚠️  GPU Memory Issue Detected[/yellow]\n"
+                        "[dim]The selected model is too large for your GPU.[/dim]\n"
+                        "[dim]\n"
+                        "[bold]Solutions:[/bold]\n"
+                        "[dim]  1. Try a smaller model (0.5B, 1B, or 3B parameters)[/dim]\n"
+                        "[dim]  2. Use more aggressive quantization (Q2, Q3, Q4)[/dim]\n"
+                        "[dim]  3. Close other GPU-intensive applications[/dim]\n"
+                        "[dim]  4. Check VRAM usage: nvidia-smi[/dim]\n"
+                        "[dim]\n"
+                        "[dim]Use /setup to select a different model.[/dim]\n"
+                    )
+                elif "not found" in error_msg.lower() or "no such file" in error_msg.lower():
+                    self.log_message(
+                        "[yellow]⚠️  Model Not Found[/yellow]\n"
+                        "[dim]The model could not be located on this system.[/dim]\n"
+                        "[dim]\n"
+                        "[bold]Solutions:[/bold]\n"
+                        "[dim]  1. Run /setup to download the model[/dim]\n"
+                        "[dim]  2. Check: parishad models list[/dim]\n"
+                        "[dim]  3. Download manually: parishad download <model>[/dim]\n"
+                    )
+                elif "no gpu" in error_msg.lower() or "cuda not available" in error_msg.lower():
+                    self.log_message(
+                        "[yellow]⚠️  No GPU Detected[/yellow]\n"
+                        "[dim]This project requires a CUDA-capable GPU.[/dim]\n"
+                        "[dim]\n"
+                        "[bold]Requirements:[/bold]\n"
+                        "[dim]  • NVIDIA GPU with CUDA support[/dim]\n"
+                        "[dim]  • Updated GPU drivers[/dim]\n"
+                        "[dim]  • PyTorch with CUDA installed[/dim]\n"
+                        "[dim]\n"
+                        "[dim]Check: nvidia-smi[/dim]\n"
+                    )
+                else:
+                    self.log_message(f"[red]{type(e).__name__}: {error_msg}[/red]\n")
+                
+                self.council = None
+                return
             
             if self.council:
                 self.log_message(
@@ -2735,6 +2781,80 @@ class ParishadApp(App):
         chat.write(message)
         chat.scroll_end()
     
+    def _sanitize_answer_text(self, text: str) -> str:
+        """
+        Extract clean text from any format: plain text, JSON, malformed JSON, etc.
+        
+        Uses aggressive parsing to handle all model quirks.
+        """
+        import json
+        import re
+        
+        if not text or not text.strip():
+            return text
+        
+        original = text
+        text = text.strip()
+        
+        # Strategy 1: If it's plain text (no JSON structure), return as-is
+        if not any(marker in text.lower() for marker in ['{', '[', 'json', '"final_answer"', '"answer"']):
+            return text
+        
+        # Strategy 2: Try to extract from JSON structure
+        # Normalize malformed JSON first
+        normalized = text
+        
+        # Remove 'json' prefix: json { -> {
+        normalized = re.sub(r'^json\s*', '', normalized, flags=re.IGNORECASE)
+        
+        # Fix parentheses: (...) -> {...}
+        if normalized.startswith('(') and ')' in normalized:
+            normalized = normalized.replace('(', '{', 1)
+            normalized = normalized[::-1].replace(')', '}', 1)[::-1]  # Replace last )
+        
+        # Fix key names with spaces: "final answer" -> "final_answer"
+        normalized = re.sub(r'"([a-z]+)\s+([a-z]+)"(\s*):', r'"\1_\2"\3:', normalized, flags=re.IGNORECASE)
+        
+        # Fix period separators: ". " -> ", "
+        normalized = re.sub(r'"\s*\.\s*"', '", "', normalized)
+        
+        # Try to parse normalized JSON
+        try:
+            data = json.loads(normalized)
+            if isinstance(data, dict):
+                # Priority extraction
+                for key in ["final_answer", "answer", "response", "content", "text", "result"]:
+                    if key in data and isinstance(data[key], str) and len(data[key]) > 10:
+                        return data[key]
+        except:
+            pass
+        
+        # Strategy 3: Regex extraction from JSON-like text
+        patterns = [
+            r'"final_answer"\s*:\s*"([^"]+)"',
+            r'"answer"\s*:\s*"([^"]+)"',
+            r'"response"\s*:\s*"([^"]+)"',
+            r'"content"\s*:\s*"([^"]+)"',
+        ]
+        
+        for pattern in patterns:
+            match = re.search(pattern, text, re.IGNORECASE | re.DOTALL)
+            if match:
+                return match.group(1)
+        
+        # Strategy 4: Find longest quoted string (likely the answer)
+        quoted = re.findall(r'"([^"]{50,})"', text)
+        if quoted:
+            return max(quoted, key=len)
+        
+        # Strategy 5: Extract sentence-like text
+        sentences = re.findall(r'[A-Z][^.!?]{20,}[.!?]', text)
+        if sentences:
+            return ' '.join(sentences[:3])
+        
+        # Last resort: return original
+        return original
+    
     @on(Input.Submitted)
     def handle_input(self, event: Input.Submitted) -> None:
         """Handle user input submission with parsing layer."""
@@ -2814,6 +2934,80 @@ class ParishadApp(App):
         # See: docs/TUI_FREEZE_WINDOWS.md for full technical explanation.
         self._processing_query = True
         
+        # Check VRAM compatibility before starting (like LM Studio)
+        vram_warning_shown = False
+        try:
+            import json
+            config_json_path = Path.home() / ".parishad" / "config.json"
+            if config_json_path.exists():
+                with open(config_json_path) as f:
+                    user_config_data = json.load(f)
+                
+                session = user_config_data.get("session", {})
+                model_key = session.get("model")
+                
+                if model_key:
+                    # Simple file size based check as fallback
+                    available_models = user_config_data.get("models", {})
+                    if model_key in available_models:
+                        size_bytes = available_models[model_key].get("size_bytes", 0)
+                        size_gb = size_bytes / 1e9
+                        
+                        # Get VRAM - smart check with CPU/GPU offloading intelligence
+                        try:
+                            import torch
+                            if torch.cuda.is_available():
+                                vram_gb = torch.cuda.get_device_properties(0).total_memory / 1e9
+                                
+                                # Estimate: file size * 1.8 for loaded model + KV cache
+                                estimated_usage = size_gb * 1.8
+                                usage_percent = (estimated_usage / vram_gb) * 100
+                                
+                                # Smart warnings based on CPU/GPU offloading behavior
+                                if usage_percent <= 100:
+                                    # Model fits entirely in GPU - optimal performance
+                                    if size_gb >= 1.5:
+                                        self.log_message(f"\n[green]✓ Model fits in GPU: {size_gb:.1f}GB model | {vram_gb:.1f}GB VRAM[/green]")
+                                        self.log_message(f"[dim]Expected: Fast inference (GPU-only)[/dim]\n")
+                                        vram_warning_shown = True
+                                        
+                                elif usage_percent <= 150:
+                                    # Slight CPU offload - still good performance
+                                    gpu_portion = int((vram_gb / estimated_usage) * 100)
+                                    cpu_portion = 100 - gpu_portion
+                                    self.log_message(f"\n[cyan]ℹ CPU+GPU Offload: {size_gb:.1f}GB model | {vram_gb:.1f}GB VRAM ({usage_percent:.0f}%)[/cyan]")
+                                    self.log_message(f"[cyan]Split: ~{gpu_portion}% GPU, ~{cpu_portion}% CPU RAM[/cyan]")
+                                    self.log_message(f"[dim]Expected: Good performance with minimal slowdown (2-5 min/query)[/dim]\n")
+                                    vram_warning_shown = True
+                                    
+                                elif usage_percent <= 250:
+                                    # Moderate CPU offload - noticeable slowdown
+                                    gpu_portion = int((vram_gb / estimated_usage) * 100)
+                                    cpu_portion = 100 - gpu_portion
+                                    self.log_message(f"\n[yellow]⚠ Significant CPU Offload: {size_gb:.1f}GB model | {vram_gb:.1f}GB VRAM ({usage_percent:.0f}%)[/yellow]")
+                                    self.log_message(f"[yellow]Split: ~{gpu_portion}% GPU, ~{cpu_portion}% CPU RAM[/yellow]")
+                                    self.log_message(f"[yellow]Expected: Moderate slowdown (10-20 min/query)[/yellow]\n")
+                                    vram_warning_shown = True
+                                    
+                                else:
+                                    # Heavy CPU offload - significant slowdown
+                                    gpu_portion = int((vram_gb / estimated_usage) * 100)
+                                    cpu_portion = 100 - gpu_portion
+                                    self.log_message(f"\n[red]⚠ Heavy CPU Offload: {size_gb:.1f}GB model | {vram_gb:.1f}GB VRAM ({usage_percent:.0f}%)[/red]")
+                                    self.log_message(f"[red]Split: ~{gpu_portion}% GPU, ~{cpu_portion}% CPU RAM[/red]")
+                                    self.log_message(f"[red]Expected: Very slow inference (30+ min/query)[/red]")
+                                    self.log_message(f"[dim]Smaller models (0.5-3B) recommended for better experience[/dim]\n")
+                                    vram_warning_shown = True
+                        except Exception as vram_ex:
+                            # Silently skip VRAM check if torch unavailable (CPU-only or torch not installed)
+                            pass
+        except Exception as e:
+            # Log error but don't block execution
+            self.log_message(f"[dim]⚠ VRAM check failed: {e}[/dim]")
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"VRAM check error: {e}", exc_info=True)
+        
         # Save query to temp file for subprocess to read
         query_file = Path.home() / ".parishad" / "temp_query.txt"
         result_file = Path.home() / ".parishad" / "temp_result.json"
@@ -2849,14 +3043,68 @@ try:
     # Import and run inference
     from parishad.orchestrator.engine import Parishad
     from parishad.config.user_config import load_user_config
+    import sys
+    import os
+    
+    # Add parent dir to path to import load_parishad_config
+    sys.path.insert(0, os.path.dirname(__file__))
     
     user_cfg = load_user_config()
     
+    # Load config to get pipeline name from Sabha selection
+    # Create debug log file for config loading
+    debug_log = Path.home() / ".parishad" / "sabha_config_debug.log"
+    
+    config_name = "core"  # Default fallback
+    try:
+        # Import the function from the same file
+        config_file = Path.home() / ".parishad" / "config.json"
+        debug_log.write_text(f"Reading config from: {{config_file}}\\n", encoding="utf-8")
+        
+        if config_file.exists():
+            import json
+            with open(config_file, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                session = data.get("session", {{}})
+                sabha = session.get("sabha", "madhyam")
+                
+                debug_msg = debug_log.read_text(encoding="utf-8")
+                debug_msg += f"Found sabha: {{sabha}}\\n"
+                debug_log.write_text(debug_msg, encoding="utf-8")
+                
+                # Map sabha to pipeline config
+                from parishad.config.modes import get_pipeline_name
+                config_name = get_pipeline_name(sabha)
+                
+                debug_msg = debug_log.read_text(encoding="utf-8")
+                debug_msg += f"Mapped to config: {{config_name}}\\n"
+                debug_log.write_text(debug_msg, encoding="utf-8")
+        else:
+            debug_msg = debug_log.read_text(encoding="utf-8")
+            debug_msg += f"Config file not found, using default: {{config_name}}\\n"
+            debug_log.write_text(debug_msg, encoding="utf-8")
+    except Exception as e:
+        import traceback
+        debug_msg = debug_log.read_text(encoding="utf-8") if debug_log.exists() else ""
+        debug_msg += f"ERROR loading config: {{str(e)}}\\n{{traceback.format_exc()}}\\n"
+        debug_msg += f"Using default config: {{config_name}}\\n"
+        debug_log.write_text(debug_msg, encoding="utf-8")
+    
+    # Log final config being used
+    debug_msg = debug_log.read_text(encoding="utf-8")
+    debug_msg += f"\\nFINAL CONFIG TO USE: {{config_name}}\\n"
+    debug_log.write_text(debug_msg, encoding="utf-8")
+    
     council = Parishad(
-        config="core",
+        config=config_name,
         profile=user_cfg.default_profile,
         mode=user_cfg.default_mode,
     )
+    
+    # Confirm Parishad initialized with correct config
+    debug_msg = debug_log.read_text(encoding="utf-8")
+    debug_msg += f"Parishad initialized with config: {{council.config_name}}\\n"
+    debug_log.write_text(debug_msg, encoding="utf-8")
     
     status_file.write_text("running", encoding="utf-8")
     
@@ -2906,30 +3154,71 @@ except Exception as e:
         )
         
         # Poll for result file
+        poll_count = 0
+        max_polls = 2400  # 20 minutes max (2400 * 0.5s = 1200s) - needed for 3B models on 4GB VRAM
+        
         def poll_subprocess_result():
+            nonlocal poll_count
+            poll_count += 1
+            
+            # Check if subprocess is still alive
+            if self._subprocess.poll() is not None and not result_file.exists():
+                # Subprocess died without creating result file
+                exit_code = self._subprocess.poll()
+                self.log_message(f"\n[red]✗ Subprocess crashed (exit code: {exit_code})[/red]")
+                self._processing_query = False
+                return
+            
+            # Check timeout
+            if poll_count > max_polls:
+                self.log_message("\n[red]✗ Query timed out after 20 minutes[/red]")
+                try:
+                    self._subprocess.terminate()
+                except:
+                    pass
+                self._processing_query = False
+                return
+            
             # Check if result file exists (inference complete)
             if result_file.exists():
                 try:
-                    result = json.loads(result_file.read_text(encoding="utf-8"))
+                    result_text = result_file.read_text(encoding="utf-8")
+                    result = json.loads(result_text)
+                    
+                    # Write to output.json in current workspace for user reference
+                    output_file = self.cwd / "output.json"
+                    try:
+                        if result.get("success") and result.get("final_answer"):
+                            # Sanitize answer to extract clean text from JSON if needed
+                            clean_answer = self._sanitize_answer_text(result['final_answer'])
+                            output_file.write_text(clean_answer, encoding="utf-8")
+                    except Exception as e:
+                        # Also log if this fails
+                        import traceback
+                        self.log_message(f"[dim]⚠ Could not write output.json: {e}[/dim]")
                     
                     if result.get("success"):
                         # Display the result
                         self.log_message(f"\n[dim]━━━ Sabha Activity ({result.get('roles')} roles, {result.get('tokens')} tokens) ━━━[/dim]")
                         
                         if result.get("final_answer"):
-                            self.log_message(f"\n[bold]👑 Raja's Answer:[/bold]\n{result['final_answer']}\n")
+                            answer = self._sanitize_answer_text(result['final_answer'])
+                            self.log_message(f"\n[bold]👑 Raja's Answer:[/bold]\n{answer}\n")
                         elif result.get("error"):
                             self.log_message(f"\n[red]Error: {result['error']}[/red]")
                         else:
                             self.log_message("\n[green]Query completed successfully![/green]")
                     else:
-                        self.log_message(f"\n[red]Error: {result.get('error')}[/red]\n[dim]{result.get('traceback', '')[:500]}...[/dim]")
+                        error_msg = result.get('error', 'Unknown error')
+                        traceback_msg = result.get('traceback', '')[:500]
+                        self.log_message(f"\n[red]Error: {error_msg}[/red]\n[dim]{traceback_msg}...[/dim]")
                     
                     # Cleanup temp files
                     for f in [result_file, status_file, script_file]:
                         try:
-                            f.unlink()
-                        except:
+                            if f.exists():
+                                f.unlink()
+                        except Exception as e:
                             pass
                     
                     self._processing_query = False
@@ -2938,7 +3227,11 @@ except Exception as e:
                     except:
                         pass
                     
-                except Exception:
+                except json.JSONDecodeError as e:
+                    self.log_message(f"\n[red]✗ Failed to parse result: {e}[/red]")
+                    self._processing_query = False
+                except Exception as e:
+                    self.log_message(f"\n[red]✗ Error reading result: {e}[/red]")
                     self._processing_query = False
             else:
                 # Keep polling until result is ready
@@ -3038,6 +3331,8 @@ except Exception as e:
             # Display the final answer from Raja
             if trace.final_answer:
                 answer = trace.final_answer.final_answer
+                # Sanitize answer to remove any JSON formatting that may have leaked through
+                answer = self._sanitize_answer_text(answer)
                 self.log_message(f"\n[bold]👑 Raja's Answer:[/bold]\n{answer}\n")
             elif trace.error:
                 self.log_message(f"\n[red]Error: {trace.error}[/red]")
@@ -3204,6 +3499,8 @@ except Exception as e:
         # Display the final answer from Raja
         if trace.final_answer:
             answer = trace.final_answer.final_answer
+            # Sanitize answer to remove any JSON formatting that may have leaked through
+            answer = self._sanitize_answer_text(answer)
             self.log_message(f"\n[bold]👑 Raja's Answer:[/bold]\n{answer}\n")
         elif trace.error:
             self.log_message(f"\n[red]Error: {trace.error}[/red]")
@@ -3317,6 +3614,8 @@ except Exception as e:
         # Display the final answer from Raja
         if trace.final_answer:
             answer = trace.final_answer.final_answer
+            # Sanitize answer to remove any JSON formatting that may have leaked through
+            answer = self._sanitize_answer_text(answer)
             self.log_message(f"\n[bold]👑 Raja's Answer:[/bold]\n{answer}\n")
         elif trace.error:
             self.log_message(f"\n[red]Error: {trace.error}[/red]")
@@ -3797,6 +4096,16 @@ except Exception as e:
         
         # Otherwise, require double press to exit
         if self.ctrl_c_pressed:
+            # Kill subprocess if still running
+            if self._subprocess and self._subprocess.poll() is None:
+                try:
+                    self._subprocess.terminate()
+                    self._subprocess.wait(timeout=2)
+                except:
+                    try:
+                        self._subprocess.kill()
+                    except:
+                        pass
             self.exit()
         else:
             self.ctrl_c_pressed = True

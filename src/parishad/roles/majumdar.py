@@ -4,6 +4,7 @@ Decomposes complex tasks into clear, executable steps.
 """
 
 from typing import Any, Optional
+import logging
 
 from .base import (
     Role,
@@ -13,6 +14,8 @@ from .base import (
     Plan,
     PlanStep,
 )
+
+logger = logging.getLogger(__name__)
 
 
 PLANNER_SYSTEM_PROMPT = """You are Majumdar, the Planner in the Parishad council. Your job is to decompose complex tasks into clear, executable steps that the Implementor can follow.
@@ -48,6 +51,8 @@ Guidelines:
 - Steps should be independent where possible
 - Identify dependencies between steps accurately
 - Mark steps that need verification as checkpoints
+
+CRITICAL: Output ONLY the JSON object. Do not include thinking, reasoning, or explanatory text before or after the JSON.
 
 For code tasks:
 - Include steps for understanding requirements, implementing, and testing

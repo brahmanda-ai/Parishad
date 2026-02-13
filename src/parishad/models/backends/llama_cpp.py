@@ -105,18 +105,69 @@ class LlamaCppBackend(BaseBackend):
         self._llm = None
     
     def load(self, config: BackendConfig) -> None:
-        """Load a GGUF model."""
-        llama_cpp = _get_llama_cpp()
+        """Load a GGUF model with comprehensive logging and VRAM checking."""
+        import time
+        start_time = time.perf_counter()
         
+        logger.info(f"")
+        logger.info(f"{'='*80}")
+        logger.info(f"🚀 LLAMA.CPP MODEL LOADING STARTED")
+        logger.info(f"{'='*80}")
+        logger.info(f"Model ID: {config.model_id}")
+        logger.info(f"Context Length: {config.context_length}")
+        
+        llama_cpp = _get_llama_cpp()
+        logger.info(f"✅ llama-cpp-python loaded successfully")
+        
+        # Resolve model path
+        logger.info(f"🔍 Resolving model path for: {config.model_id}")
         model_path = resolve_model_path(config.model_id)
         
         if model_path is None:
+            logger.error(f"❌ Model not found: {config.model_id}")
             raise BackendError(
                 f"Model not found: {config.model_id}. "
                 "Download with: parishad download <model_name>",
                 backend_name=self._name,
                 model_id=config.model_id,
             )
+        
+        logger.info(f"✅ Model path resolved: {model_path}")
+        model_size_mb = model_path.stat().st_size / (1024**2)
+        logger.info(f"   File size: {model_size_mb:.2f} MB")
+        
+       # VRAM compatibility check
+        try:
+            from ..memory_estimation import check_model_compatibility, detect_vram
+            
+            logger.info(f"")
+            logger.info(f"🔍 Checking GPU/VRAM compatibility...")
+            vram_info = detect_vram()
+            
+            if not vram_info.is_gpu:
+                logger.error(f"❌ No GPU detected! This project requires GPU.")
+                logger.error(f"   GPU Type: {vram_info.gpu_type}")
+                logger.error(f"   Please install CUDA drivers and PyTorch with CUDA support.")
+            
+            is_compatible, message, mem_req = check_model_compatibility(
+                config.model_id,
+                vram_info=vram_info,
+                context_length=config.context_length
+            )
+            
+            if not is_compatible and not vram_info.is_gpu:
+                raise BackendError(
+                    message,
+                    backend_name=self._name,
+                    model_id=config.model_id,
+                )
+            elif not is_compatible:
+                logger.warning(f"⚠️  VRAM WARNING: {message}")
+                logger.warning(f"   Attempting to load anyway, but may fail...")
+        except ImportError as e:
+            logger.warning(f"⚠️  Could not check VRAM compatibility: {e}")
+        except Exception as e:
+            logger.warning(f"⚠️  VRAM check failed: {e}")
         
         extra = config.extra or {}
         n_gpu_layers = extra.get("n_gpu_layers", -1)
@@ -125,7 +176,19 @@ class LlamaCppBackend(BaseBackend):
         verbose = extra.get("verbose", False)
         chat_format = extra.get("chat_format", None)
         
+        logger.info(f"")
+        logger.info(f"📋 Loading configuration:")
+        logger.info(f"   GPU Layers: {n_gpu_layers} (-1 = all layers on GPU)")
+        logger.info(f"   Context Size: {n_ctx}")
+        logger.info(f"   Batch Size: {n_batch}")
+        logger.info(f"   Verbose: {verbose}")
+        logger.info(f"   Chat Format: {chat_format or 'auto'}")
+        
         try:
+            logger.info(f"")
+            logger.info(f"⏳ Loading model into memory... (this may take 30-90 seconds)")
+            load_start = time.perf_counter()
+            
             suppress_ctx = _suppress_output(disable=False) if _suppress_output else None
             if suppress_ctx:
                 with suppress_ctx:
@@ -146,11 +209,40 @@ class LlamaCppBackend(BaseBackend):
                     verbose=verbose,
                     chat_format=chat_format,
                 )
+            
+            load_duration = time.perf_counter() - load_start
+            logger.info(f"✅ Model loaded successfully in {load_duration:.2f}s")
+            
             self._config = config
             self._model_id = config.model_id
             self._loaded = True
             
+            total_duration = time.perf_counter() - start_time
+            logger.info(f"")
+            logger.info(f"{'='*80}")
+            logger.info(f"✅ LLAMA.CPP LOADING COMPLETE - Total time: {total_duration:.2f}s")
+            logger.info(f"{'='*80}")
+            logger.info(f"")
+            
         except Exception as e:
+            load_duration = time.perf_counter() - start_time
+            logger.error(f"")
+            logger.error(f"{'='*80}")
+            logger.error(f"❌ LLAMA.CPP LOADING FAILED after {load_duration:.2f}s")
+            logger.error(f"{'='*80}")
+            logger.error(f"Model: {config.model_id}")
+            logger.error(f"Path: {model_path}")
+            logger.error(f"Error: {type(e).__name__}: {e}")
+            logger.error(f"")
+            
+            # Provide helpful error messages
+            error_msg = str(e).lower()
+            if "out of memory" in error_msg or "cuda" in error_msg:
+                logger.error(f"💡 This appears to be a VRAM/memory issue.")
+                logger.error(f"   Try a smaller model or more aggressive quantization.")
+            elif "file" in error_msg or "not found" in error_msg:
+                logger.error(f"💡 Model file issue. Try re-downloading the model.")
+            
             raise BackendError(
                 f"Failed to load model: {e}",
                 backend_name=self._name,
@@ -166,8 +258,9 @@ class LlamaCppBackend(BaseBackend):
         top_p: float,
         stop: list[str] | None = None,
     ) -> BackendResult:
-        """Generate text using llama.cpp."""
+        """Generate text using llama.cpp with comprehensive logging."""
         if not self._loaded or self._llm is None:
+            logger.error(f"❌ Cannot generate: Model not loaded")
             raise BackendError(
                 "Model not loaded",
                 backend_name=self._name,
@@ -176,8 +269,20 @@ class LlamaCppBackend(BaseBackend):
         
         start_time = time.perf_counter()
         
+        logger.info(f"")
+        logger.info(f"{'─'*80}")
+        logger.info(f"🎯 GENERATION STARTED")
+        logger.info(f"{'─'*80}")
+        logger.info(f"Model: {self._model_id}")
+        logger.info(f"Prompt length: {len(prompt)} chars")
+        logger.info(f"Max tokens: {max_tokens}")
+        logger.info(f"Temperature: {temperature}")
+        logger.info(f"Top-p: {top_p}")
+        logger.info(f"Stop sequences: {stop or 'none'}")
+        
         try:
-            logger.debug(f"Calling llama_cpp with prompt len={len(prompt)}, max_tokens={max_tokens}, temp={temperature}")
+            logger.info(f"⏳ Generating response...")
+            gen_start = time.perf_counter()
             
             result = self._llm(
                 prompt,
@@ -187,6 +292,8 @@ class LlamaCppBackend(BaseBackend):
                 stop=stop or [],
                 echo=False,
             )
+            
+            gen_duration = time.perf_counter() - gen_start
             
             logger.debug(f"llama_cpp raw result keys: {result.keys()}")
             if "choices" in result and result["choices"]:
@@ -201,8 +308,19 @@ class LlamaCppBackend(BaseBackend):
             usage = result.get("usage", {})
             tokens_in = usage.get("prompt_tokens", self._estimate_tokens(prompt))
             tokens_out = usage.get("completion_tokens", self._estimate_tokens(text))
+            total_tokens = tokens_in + tokens_out
             
             latency_ms = (time.perf_counter() - start_time) * 1000
+            tokens_per_sec = tokens_out / gen_duration if gen_duration > 0 else 0
+            
+            logger.info(f"✅ Generation complete in {gen_duration:.2f}s")
+            logger.info(f"   Tokens: {tokens_in} in + {tokens_out} out = {total_tokens} total")
+            logger.info(f"   Speed: {tokens_per_sec:.1f} tokens/sec")
+            logger.info(f"   Finish reason: {finish_reason}")
+            logger.info(f"   Response length: {len(text)} chars")
+            logger.info(f"   Response preview: {text[:100]}...")
+            logger.info(f"{'─'*80}")
+            logger.info(f"")
             
             return BackendResult(
                 text=text,
@@ -211,18 +329,22 @@ class LlamaCppBackend(BaseBackend):
                 model_id=self._model_id,
                 finish_reason=finish_reason,
                 latency_ms=latency_ms,
-                extra={"total_tokens": usage.get("total_tokens", tokens_in + tokens_out)},
+                extra={
+                    "total_tokens": total_tokens,
+                    "tokens_per_sec": tokens_per_sec,
+                    "generation_time_sec": gen_duration
+                },
             )
             
         except Exception as e:
-            raise BackendError(
-                f"Generation failed: {e}",
-                backend_name=self._name,
-                model_id=self._model_id,
-                original_error=e,
-            )
-    
-    def unload(self) -> None:
+            duration = time.perf_counter() - start_time
+            logger.error(f"")
+            logger.error(f"{'─'*80}")
+            logger.error(f"❌ GENERATION FAILED after {duration:.2f}s")
+            logger.error(f"{'─'*80}")
+            logger.error(f"Error: {type(e).__name__}: {e}")
+            logger.error(f"")
+            
         """Unload the model to free memory."""
         if self._llm is not None:
             del self._llm

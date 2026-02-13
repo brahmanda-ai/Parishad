@@ -4,6 +4,8 @@ Decider who synthesizes all information to produce the final answer.
 """
 
 from typing import Any, Optional
+import logging
+import json
 
 from .base import (
     Role,
@@ -13,6 +15,9 @@ from .base import (
 )
 from ..utils.text import truncate_with_note
 
+logger = logging.getLogger(__name__)
+
+# Full orchestration prompt - works for models across all sizes with temperature adjustment
 JUDGE_SYSTEM_PROMPT = """You are Raja, the Judge in the Parishad council. Your job is to synthesize all information from the council and produce the final, authoritative answer.
 
 You have access to:
@@ -94,6 +99,12 @@ class Raja(Role):
     """
     Raja (Judge) integrates all council outputs into final answer.
     
+    Works across all model sizes through intelligent orchestration:
+    - Small models (0.5-3B): Receives simplified inputs from reduced pipeline
+    - Large models (3B+): Receives full council synthesis
+    
+    Temperature is automatically adjusted based on model size.
+    
     - Slot: BIG (13-34B)
     - Purpose: Final synthesis and decision making
     - Output: FinalAnswer with polished answer, rationale, confidence
@@ -124,6 +135,8 @@ class Raja(Role):
         return JUDGE_SYSTEM_PROMPT
     
     def format_input(self, role_input: RoleInput) -> str:
+        # Orchestration mode: Use council outputs
+        # For small models with reduced pipeline, some inputs will be None
         # Phase-3 Task 2: Extract truncation policy from routing metadata
         routing_meta = role_input.metadata.get("routing", {})
         truncation_policy = routing_meta.get("truncation_policy", "none")
@@ -310,12 +323,54 @@ Difficulty: {task_spec.get('difficulty_guess', 'medium')}"""
     
     def parse_output(self, raw_output: str) -> dict[str, Any]:
         """Parse LLM output into FinalAnswer dict."""
+        
+        # Parse JSON as usual - works for all models with appropriate temperature
         data = self._extract_json(raw_output)
         
-        # Handle raw output fallback
+        # Check if extraction failed (new flag from enhanced _extract_json)
+        extraction_failed = data.get("extraction_failed", False)
+        if extraction_failed:
+            logger.warning(f"Raja: JSON extraction failed, using raw_output fallback")
+        
+        # Handle raw output fallback - ensure we always get some answer
         final_answer = data.get("final_answer", "")
         if not final_answer and "raw_output" in data:
             final_answer = data["raw_output"]
+        
+        # Fix: Sometimes models return JSON-formatted text in final_answer
+        # Detect and extract the actual text content
+        if final_answer and isinstance(final_answer, str):
+            final_answer = self._extract_text_from_json_answer(final_answer)
+        
+        # CRITICAL: Detect degenerate / repetitive output from weak models
+        from ..utils.output_sanitizer import detect_degenerate_output, sanitize_output
+        if final_answer and detect_degenerate_output(final_answer):
+            logger.warning(f"Raja: degenerate final_answer detected, sanitizing")
+            final_answer = sanitize_output(final_answer)
+        
+        # Strip useless meta-phrases that weak models output
+        # If final_answer is just "The final answer is " or similar, it's useless
+        if final_answer:
+            stripped = final_answer.strip()
+            useless_patterns = [
+                "the final answer is",
+                "final answer:",
+                "answer:",
+                "the answer is",
+                "the final answer is:",
+                "final answer",
+                "answer",
+            ]
+            if stripped.lower().rstrip(': ') in useless_patterns or stripped.lower() in useless_patterns:
+                logger.warning(f"Raja output only meta-phrase '{stripped}' - treating as empty")
+                final_answer = ""
+        
+        # CRITICAL: Ensure we never return an empty final_answer
+        # This is the last line of defense against "No answer generated"
+        if not final_answer or not final_answer.strip():
+            logger.error(f"Raja: final_answer is empty! raw_output preview: {raw_output[:300]}")
+            # Use the raw output directly, cleaned up
+            final_answer = self._clean_raw_output_for_answer(raw_output)
         
         return {
             "final_answer": final_answer,
@@ -327,6 +382,114 @@ Difficulty: {task_spec.get('difficulty_guess', 'medium')}"""
             "numeric_answer": data.get("numeric_answer"),
             "code_block": data.get("code_block")
         }
+    
+    def _clean_raw_output_for_answer(self, text: str) -> str:
+        """
+        Clean raw output to extract usable answer text when all parsing fails.
+        
+        This is the last-resort fallback to prevent "No answer generated".
+        """
+        import re
+        
+        if not text or not text.strip():
+            return "Unable to generate a response. Please try rephrasing your question."
+        
+        # Remove markdown code blocks
+        text = re.sub(r'```[\s\S]*?```', '', text)
+        
+        # Remove Llama-3 format markers
+        text = re.sub(r'<\|start_header_id\|>.*?<\|end_header_id\|>', '', text)
+        text = re.sub(r'<\|eot_id\|>', '', text)
+        text = re.sub(r'<\|begin_of_text\|>', '', text)
+        
+        # Remove JSON-like prefixes
+        text = re.sub(r'^\s*\{?\s*"?final_answer"?\s*:\s*"?', '', text)
+        
+        # Clean up and limit
+        text = ' '.join(text.split())
+        if len(text) > 1500:
+            text = text[:1500] + "..."
+        
+        return text.strip() if text.strip() else "Unable to generate a response. Please try rephrasing your question."
+    
+    def _extract_text_from_json_answer(self, text: str) -> str:
+        """
+        Extract plain text from JSON-formatted answers.
+        
+        Sometimes models return answers like:
+        - {"answer": "actual text"}
+        - {"response": "actual text"}
+        - {"final_answer": "actual text"}
+        
+        This method detects these patterns and extracts the actual text.
+        """
+        import re
+        from ..utils.output_sanitizer import detect_degenerate_output, sanitize_output
+        
+        # Use centralized sanitizer for degenerate/repetitive patterns
+        if detect_degenerate_output(text):
+            text = sanitize_output(text)
+            if not text:
+                return ""
+        else:
+            # For non-degenerate text, still strip common meta-prefixes
+            for _ in range(10):
+                before = text.strip()
+                
+                # Strip surrounding quotes
+                if len(before) >= 2:
+                    if (before[0] == '"' and before[-1] == '"') or \
+                       (before[0] == "'" and before[-1] == "'"):
+                        before = before[1:-1]
+                
+                # Strip known prefixes
+                before = re.sub(r'^The\s+final\s+answer\s+is:?\s*', '', before, flags=re.IGNORECASE)
+                before = re.sub(r'^Final\s+answer:?\s*', '', before, flags=re.IGNORECASE)
+                before = re.sub(r'^Answer:?\s*', '', before, flags=re.IGNORECASE)
+                
+                if before == text.strip():
+                    break
+                text = before
+        
+        # If we're left with just meta-text, return empty (fallback will trigger)
+        if text.strip().lower().rstrip(': ') in [
+            'the final answer is', 'final answer', 'answer',
+            'the answer is', 'response', 'result', 'output'
+        ]:
+            return ""
+        
+        # Skip JSON parsing if text doesn't look like JSON
+        text_stripped = text.strip()
+        if not (text_stripped.startswith('{') or text_stripped.startswith('[')):
+            return text
+        
+        try:
+            # Try to parse as JSON
+            parsed = json.loads(text_stripped)
+            
+            # If it's a dict, look for common answer keys
+            if isinstance(parsed, dict):
+                # Priority order of keys to check
+                answer_keys = [
+                    "final_answer", "answer", "response", "text", "content", 
+                    "result", "output", "message", "reply"
+                ]
+                
+                for key in answer_keys:
+                    if key in parsed and isinstance(parsed[key], str):
+                        return parsed[key]
+                
+                # If no standard key found, return the first string value
+                for value in parsed.values():
+                    if isinstance(value, str) and len(value) > 10:  # Ignore short metadata
+                        return value
+            
+            # If it's a list or other type, return original
+            return text
+            
+        except (json.JSONDecodeError, TypeError):
+            # Not valid JSON, return as-is
+            return text
     
     def create_final_answer(self, role_input: RoleInput) -> FinalAnswer:
         """

@@ -108,9 +108,9 @@ class SlotConfig:
     # For transformers: quantization, device_map, torch_dtype
     # For openai: api_key_env, base_url, organization
     quantization: Optional[str] = None
-    device_map: str = "auto"
+    device_map: str = "cuda"  # GPU-only: Changed from "auto" to "cuda"
     model_file: Optional[str] = None
-    n_gpu_layers: int = -1
+    n_gpu_layers: int = -1  # GPU-only: -1 means use all GPU layers
     api_key_env: Optional[str] = None
     
     # Generic extra args (for backend-specific settings like host/port)
@@ -423,7 +423,15 @@ class ModelRunner:
         if not slot_config:
             raise UnknownSlotError(f"No configuration for slot: {slot_name}")
         
-        backend = _create_backend(slot_config.backend)
+        # CRITICAL FIX: If multiple slots share the same SlotConfig instance (e.g., all pointing to "single"),
+        # they should also share the same backend instance to avoid loading the model multiple times
+        for existing_slot_name, existing_backend in self._backends.items():
+            existing_config = self.config.slots.get(existing_slot_name)
+            # Check if the SlotConfig object is the SAME instance (not just equal values)
+            if existing_config is slot_config:
+                logger.info(f"Slot '{slot_name}' reusing backend from '{existing_slot_name}' (shared SlotConfig)")
+                self._backends[slot_name] = existing_backend
+                return existing_backend
         
         # Get backend type
         backend_type = slot_config.backend
@@ -461,8 +469,16 @@ class ModelRunner:
         if not slot_config:
             raise UnknownSlotError(f"No configuration for slot: {slot_name}")
         
-        # Get backend (already configured via factory)
+        # Get backend (may be shared with other slots)
         backend = self._get_backend(slot)
+        
+        # Check if backend is already loaded under a different slot name
+        # (this happens when multiple slots share the same SlotConfig)
+        for loaded_slot in self._loaded_slots:
+            if loaded_slot in self._backends and self._backends[loaded_slot] is backend:
+                logger.info(f"Slot '{slot_name}' backend already loaded under '{loaded_slot}' - marking as loaded")
+                self._loaded_slots.add(slot_name)
+                return
         
         # Build backend config
         backend_config = slot_config.to_backend_config()

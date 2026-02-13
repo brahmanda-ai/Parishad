@@ -10,40 +10,456 @@
       "description": "Quantized GGUF models for efficient CPU/GPU inference. Compatible with llama.cpp backend.",
       "backend": "llama_cpp",
       "models": [
-        {"name": "Llama 3.2 1B Instruct", "shortcut": "bartowski/Llama-3.2-1B-Instruct-GGUF", "size_gb": 0.8, "params": "1B", "quantization": "Q4_K_M", "distributor": "Meta", "description": "Compact instruction model", "tags": ["gguf", "lightweight", "instruct", "chat"]},
-        {"name": "Llama 3.2 3B Instruct", "shortcut": "bartowski/Llama-3.2-3B-Instruct-GGUF", "size_gb": 2.0, "params": "3B", "quantization": "Q4_K_M", "distributor": "Meta", "description": "Balanced instruction model", "tags": ["gguf", "balanced", "instruct", "chat"]},
-        {"name": "Llama 3.1 8B Instruct", "shortcut": "bartowski/Meta-Llama-3.1-8B-Instruct-GGUF", "size_gb": 5.0, "params": "8B", "quantization": "Q4_K_M", "distributor": "Meta", "description": "Flagship instruction model", "tags": ["gguf", "powerful", "instruct", "chat"]},
-        {"name": "Llama 3.1 70B Instruct", "shortcut": "bartowski/Meta-Llama-3.1-70B-Instruct-GGUF", "size_gb": 40.0, "params": "70B", "quantization": "Q4_K_M", "distributor": "Meta", "description": "Largest Llama GGUF", "tags": ["gguf", "large", "powerful", "reasoning"]},
-        {"name": "Qwen 2.5 0.5B", "shortcut": "bartowski/Qwen2.5-0.5B-Instruct-GGUF", "size_gb": 0.4, "params": "0.5B", "quantization": "Q4_K_M", "distributor": "Alibaba", "description": "Ultra-lightweight GGUF", "tags": ["gguf", "tiny", "fast", "efficient"]},
-        {"name": "Qwen 2.5 1.5B", "shortcut": "bartowski/Qwen2.5-1.5B-Instruct-GGUF", "size_gb": 1.0, "params": "1.5B", "quantization": "Q4_K_M", "distributor": "Alibaba", "description": "Compact Qwen GGUF", "tags": ["gguf", "lightweight", "fast", "multilingual"]},
-        {"name": "Qwen 2.5 3B", "shortcut": "bartowski/Qwen2.5-3B-Instruct-GGUF", "size_gb": 2.0, "params": "3B", "quantization": "Q4_K_M", "distributor": "Alibaba", "description": "Balanced Qwen GGUF", "tags": ["gguf", "balanced", "multilingual", "code"]},
-        {"name": "Qwen 2.5 7B Instruct", "shortcut": "bartowski/Qwen2.5-7B-Instruct-GGUF", "size_gb": 4.5, "params": "7B", "quantization": "Q4_K_M", "distributor": "Alibaba", "description": "Multilingual GGUF", "tags": ["gguf", "multilingual", "instruct", "reasoning"]},
-        {"name": "Qwen 2.5 14B", "shortcut": "bartowski/Qwen2.5-14B-Instruct-GGUF", "size_gb": 9.0, "params": "14B", "quantization": "Q4_K_M", "distributor": "Alibaba", "description": "Large Qwen GGUF", "tags": ["gguf", "large", "reasoning", "multilingual"]},
-        {"name": "Qwen 2.5 32B", "shortcut": "bartowski/Qwen2.5-32B-Instruct-GGUF", "size_gb": 20.0, "params": "32B", "quantization": "Q4_K_M", "distributor": "Alibaba", "description": "Very large Qwen GGUF", "tags": ["gguf", "very-large", "reasoning", "multilingual"]},
-        {"name": "Qwen 2.5 72B", "shortcut": "bartowski/Qwen2.5-72B-Instruct-GGUF", "size_gb": 45.0, "params": "72B", "quantization": "Q4_K_M", "distributor": "Alibaba", "description": "Largest Qwen GGUF", "tags": ["gguf", "largest", "powerful", "multilingual"]},
-        {"name": "Qwen 2.5 Coder 1.5B", "shortcut": "bartowski/Qwen2.5-Coder-1.5B-Instruct-GGUF", "size_gb": 1.0, "params": "1.5B", "quantization": "Q4_K_M", "distributor": "Alibaba", "description": "Small coding GGUF", "tags": ["gguf", "code", "fast", "programming"]},
-        {"name": "Qwen 2.5 Coder 7B", "shortcut": "bartowski/Qwen2.5-Coder-7B-Instruct-GGUF", "size_gb": 4.5, "params": "7B", "quantization": "Q4_K_M", "distributor": "Alibaba", "description": "Powerful coding GGUF", "tags": ["gguf", "code", "programming", "powerful"]},
-        {"name": "Qwen 2.5 Coder 32B", "shortcut": "bartowski/Qwen2.5-Coder-32B-Instruct-GGUF", "size_gb": 20.0, "params": "32B", "quantization": "Q4_K_M", "distributor": "Alibaba", "description": "Best coding GGUF", "tags": ["gguf", "code", "programming", "large"]},
-        {"name": "Mistral 7B Instruct v0.3", "shortcut": "bartowski/Mistral-7B-Instruct-v0.3-GGUF", "size_gb": 4.5, "params": "7B", "quantization": "Q4_K_M", "distributor": "Mistral AI", "description": "Latest Mistral GGUF", "tags": ["gguf", "instruct", "fast", "efficient"]},
-        {"name": "Mistral Small 22B", "shortcut": "bartowski/Mistral-Small-Instruct-2409-GGUF", "size_gb": 14.0, "params": "22B", "quantization": "Q4_K_M", "distributor": "Mistral AI", "description": "Enterprise-grade GGUF", "tags": ["gguf", "enterprise", "powerful", "reasoning"]},
-        {"name": "Mixtral 8x7B", "shortcut": "TheBloke/Mixtral-8x7B-Instruct-v0.1-GGUF", "size_gb": 26.0, "params": "8x7B", "quantization": "Q4_K_M", "distributor": "Mistral AI", "description": "MoE GGUF", "tags": ["gguf", "moe", "efficient", "powerful"]},
-        {"name": "Phi-3 Mini 4K Instruct", "shortcut": "microsoft/Phi-3-mini-4k-instruct-gguf", "size_gb": 2.5, "params": "3.8B", "quantization": "Q4", "distributor": "Microsoft", "description": "Compact reasoning GGUF", "tags": ["gguf", "compact", "reasoning", "math"]},
-        {"name": "Phi-3 Medium", "shortcut": "bartowski/Phi-3-medium-128k-instruct-GGUF", "size_gb": 8.0, "params": "14B", "quantization": "Q4_K_M", "distributor": "Microsoft", "description": "Medium Phi GGUF", "tags": ["gguf", "balanced", "reasoning", "math"]},
-        {"name": "Phi-3.5 Mini Instruct", "shortcut": "bartowski/Phi-3.5-mini-instruct-GGUF", "size_gb": 2.5, "params": "3.8B", "quantization": "Q4_K_M", "distributor": "Microsoft", "description": "Latest Phi GGUF", "tags": ["gguf", "compact", "fast", "reasoning"]},
-        {"name": "Gemma 2 2B", "shortcut": "bartowski/gemma-2-2b-it-GGUF", "size_gb": 1.5, "params": "2B", "quantization": "Q4_K_M", "distributor": "Google", "description": "Lightweight Gemma GGUF", "tags": ["gguf", "lightweight", "fast", "efficient"]},
-        {"name": "Gemma 2 9B IT", "shortcut": "bartowski/gemma-2-9b-it-GGUF", "size_gb": 5.5, "params": "9B", "quantization": "Q4_K_M", "distributor": "Google", "description": "Instruction tuned Gemma GGUF", "tags": ["gguf", "instruct", "balanced", "chat"]},
-        {"name": "Gemma 2 27B", "shortcut": "bartowski/gemma-2-27b-it-GGUF", "size_gb": 16.0, "params": "27B", "quantization": "Q4_K_M", "distributor": "Google", "description": "Large Gemma GGUF", "tags": ["gguf", "large", "powerful", "reasoning"]},
-        {"name": "DeepSeek R1 1.5B", "shortcut": "bartowski/DeepSeek-R1-Distill-Qwen-1.5B-GGUF", "size_gb": 1.0, "params": "1.5B", "quantization": "Q4_K_M", "distributor": "DeepSeek", "description": "Compact reasoning GGUF", "tags": ["gguf", "reasoning", "compact", "efficient"]},
-        {"name": "DeepSeek R1 Distill Qwen 7B", "shortcut": "bartowski/DeepSeek-R1-Distill-Qwen-7B-GGUF", "size_gb": 4.5, "params": "7B", "quantization": "Q4_K_M", "distributor": "DeepSeek", "description": "Distilled reasoning GGUF", "tags": ["gguf", "reasoning", "distilled", "efficient"]},
-        {"name": "DeepSeek R1 14B", "shortcut": "bartowski/DeepSeek-R1-Distill-Qwen-14B-GGUF", "size_gb": 9.0, "params": "14B", "quantization": "Q4_K_M", "distributor": "DeepSeek", "description": "Large reasoning GGUF", "tags": ["gguf", "reasoning", "large", "math"]},
-        {"name": "DeepSeek R1 32B", "shortcut": "bartowski/DeepSeek-R1-Distill-Qwen-32B-GGUF", "size_gb": 20.0, "params": "32B", "quantization": "Q4_K_M", "distributor": "DeepSeek", "description": "Very large reasoning GGUF", "tags": ["gguf", "reasoning", "very-large", "math"]},
-        {"name": "DeepSeek Coder V2 Lite", "shortcut": "bartowski/DeepSeek-Coder-V2-Lite-Instruct-GGUF", "size_gb": 10.0, "params": "16B", "quantization": "Q4_K_M", "distributor": "DeepSeek", "description": "Advanced coding GGUF", "tags": ["gguf", "code", "programming", "powerful"]},
-        {"name": "CodeLlama 7B Instruct", "shortcut": "TheBloke/CodeLlama-7B-Instruct-GGUF", "size_gb": 4.0, "params": "7B", "quantization": "Q4_K_M", "distributor": "Meta", "description": "Code instruction GGUF", "tags": ["gguf", "code", "instruct", "programming"]},
-        {"name": "CodeLlama 13B", "shortcut": "TheBloke/CodeLlama-13B-GGUF", "size_gb": 7.5, "params": "13B", "quantization": "Q4_K_M", "distributor": "Meta", "description": "Larger code GGUF", "tags": ["gguf", "code", "programming", "powerful"]},
-        {"name": "CodeLlama 34B", "shortcut": "TheBloke/CodeLlama-34B-Instruct-GGUF", "size_gb": 20.0, "params": "34B", "quantization": "Q4_K_M", "distributor": "Meta", "description": "Best CodeLlama GGUF", "tags": ["gguf", "code", "programming", "large"]},
-        {"name": "StarCoder2 3B", "shortcut": "bartowski/starcoder2-3b-GGUF", "size_gb": 2.0, "params": "3B", "quantization": "Q4_K_M", "distributor": "BigCode", "description": "Compact coder GGUF", "tags": ["gguf", "code", "fast", "programming"]},
-        {"name": "StarCoder2 7B", "shortcut": "QuantFactory/starcoder2-7b-GGUF", "size_gb": 4.5, "params": "7B", "quantization": "Q4_K_M", "distributor": "BigCode", "description": "Open source coder GGUF", "tags": ["gguf", "code", "open-source", "programming"]},
-        {"name": "StarCoder2 15B", "shortcut": "bartowski/starcoder2-15b-GGUF", "size_gb": 9.0, "params": "15B", "quantization": "Q4_K_M", "distributor": "BigCode", "description": "Large coder GGUF", "tags": ["gguf", "code", "powerful", "programming"]}
+        {
+          "name": "Llama 3.2 1B Instruct",
+          "shortcut": "bartowski/Llama-3.2-1B-Instruct-GGUF",
+          "size_gb": 0.8,
+          "params": "1B",
+          "quantization": "Q4_K_M",
+          "distributor": "Meta",
+          "description": "Compact instruction model",
+          "tags": [
+            "gguf",
+            "lightweight",
+            "instruct",
+            "chat"
+          ]
+        },
+        {
+          "name": "Llama 3.2 3B Instruct",
+          "shortcut": "bartowski/Llama-3.2-3B-Instruct-GGUF",
+          "size_gb": 2.0,
+          "params": "3B",
+          "quantization": "Q4_K_M",
+          "distributor": "Meta",
+          "description": "Balanced instruction model",
+          "tags": [
+            "gguf",
+            "balanced",
+            "instruct",
+            "chat"
+          ]
+        },
+        {
+          "name": "Llama 3.1 8B Instruct",
+          "shortcut": "bartowski/Meta-Llama-3.1-8B-Instruct-GGUF",
+          "size_gb": 5.0,
+          "params": "8B",
+          "quantization": "Q4_K_M",
+          "distributor": "Meta",
+          "description": "Flagship instruction model",
+          "tags": [
+            "gguf",
+            "powerful",
+            "instruct",
+            "chat"
+          ]
+        },
+        {
+          "name": "Llama 3.1 70B Instruct",
+          "shortcut": "bartowski/Meta-Llama-3.1-70B-Instruct-GGUF",
+          "size_gb": 40.0,
+          "params": "70B",
+          "quantization": "Q4_K_M",
+          "distributor": "Meta",
+          "description": "Largest Llama GGUF",
+          "tags": [
+            "gguf",
+            "large",
+            "powerful",
+            "reasoning"
+          ]
+        },
+        {
+          "name": "Qwen 2.5 0.5B",
+          "shortcut": "bartowski/Qwen2.5-0.5B-Instruct-GGUF",
+          "size_gb": 0.4,
+          "params": "0.5B",
+          "quantization": "Q4_K_M",
+          "distributor": "Alibaba",
+          "description": "Ultra-lightweight GGUF",
+          "tags": [
+            "gguf",
+            "tiny",
+            "fast",
+            "efficient"
+          ]
+        },
+        {
+          "name": "Qwen 2.5 1.5B",
+          "shortcut": "bartowski/Qwen2.5-1.5B-Instruct-GGUF",
+          "size_gb": 1.0,
+          "params": "1.5B",
+          "quantization": "Q4_K_M",
+          "distributor": "Alibaba",
+          "description": "Compact Qwen GGUF",
+          "tags": [
+            "gguf",
+            "lightweight",
+            "fast",
+            "multilingual"
+          ]
+        },
+        {
+          "name": "Qwen 2.5 3B",
+          "shortcut": "bartowski/Qwen2.5-3B-Instruct-GGUF",
+          "size_gb": 2.0,
+          "params": "3B",
+          "quantization": "Q4_K_M",
+          "distributor": "Alibaba",
+          "description": "Balanced Qwen GGUF",
+          "tags": [
+            "gguf",
+            "balanced",
+            "multilingual",
+            "code"
+          ]
+        },
+        {
+          "name": "Qwen 2.5 7B Instruct",
+          "shortcut": "bartowski/Qwen2.5-7B-Instruct-GGUF",
+          "size_gb": 4.5,
+          "params": "7B",
+          "quantization": "Q4_K_M",
+          "distributor": "Alibaba",
+          "description": "Multilingual GGUF",
+          "tags": [
+            "gguf",
+            "multilingual",
+            "instruct",
+            "reasoning"
+          ]
+        },
+        {
+          "name": "Qwen 2.5 14B",
+          "shortcut": "bartowski/Qwen2.5-14B-Instruct-GGUF",
+          "size_gb": 9.0,
+          "params": "14B",
+          "quantization": "Q4_K_M",
+          "distributor": "Alibaba",
+          "description": "Large Qwen GGUF",
+          "tags": [
+            "gguf",
+            "large",
+            "reasoning",
+            "multilingual"
+          ]
+        },
+        {
+          "name": "Qwen 2.5 32B",
+          "shortcut": "bartowski/Qwen2.5-32B-Instruct-GGUF",
+          "size_gb": 20.0,
+          "params": "32B",
+          "quantization": "Q4_K_M",
+          "distributor": "Alibaba",
+          "description": "Very large Qwen GGUF",
+          "tags": [
+            "gguf",
+            "very-large",
+            "reasoning",
+            "multilingual"
+          ]
+        },
+        {
+          "name": "Qwen 2.5 72B",
+          "shortcut": "bartowski/Qwen2.5-72B-Instruct-GGUF",
+          "size_gb": 45.0,
+          "params": "72B",
+          "quantization": "Q4_K_M",
+          "distributor": "Alibaba",
+          "description": "Largest Qwen GGUF",
+          "tags": [
+            "gguf",
+            "largest",
+            "powerful",
+            "multilingual"
+          ]
+        },
+        {
+          "name": "Qwen 2.5 Coder 1.5B",
+          "shortcut": "bartowski/Qwen2.5-Coder-1.5B-Instruct-GGUF",
+          "size_gb": 1.0,
+          "params": "1.5B",
+          "quantization": "Q4_K_M",
+          "distributor": "Alibaba",
+          "description": "Small coding GGUF",
+          "tags": [
+            "gguf",
+            "code",
+            "fast",
+            "programming"
+          ]
+        },
+        {
+          "name": "Qwen 2.5 Coder 7B",
+          "shortcut": "bartowski/Qwen2.5-Coder-7B-Instruct-GGUF",
+          "size_gb": 4.5,
+          "params": "7B",
+          "quantization": "Q4_K_M",
+          "distributor": "Alibaba",
+          "description": "Powerful coding GGUF",
+          "tags": [
+            "gguf",
+            "code",
+            "programming",
+            "powerful"
+          ]
+        },
+        {
+          "name": "Qwen 2.5 Coder 32B",
+          "shortcut": "bartowski/Qwen2.5-Coder-32B-Instruct-GGUF",
+          "size_gb": 20.0,
+          "params": "32B",
+          "quantization": "Q4_K_M",
+          "distributor": "Alibaba",
+          "description": "Best coding GGUF",
+          "tags": [
+            "gguf",
+            "code",
+            "programming",
+            "large"
+          ]
+        },
+        {
+          "name": "Mistral 7B Instruct v0.3",
+          "shortcut": "bartowski/Mistral-7B-Instruct-v0.3-GGUF",
+          "size_gb": 4.5,
+          "params": "7B",
+          "quantization": "Q4_K_M",
+          "distributor": "Mistral AI",
+          "description": "Latest Mistral GGUF",
+          "tags": [
+            "gguf",
+            "instruct",
+            "fast",
+            "efficient"
+          ]
+        },
+        {
+          "name": "Mistral Small 22B",
+          "shortcut": "bartowski/Mistral-Small-Instruct-2409-GGUF",
+          "size_gb": 14.0,
+          "params": "22B",
+          "quantization": "Q4_K_M",
+          "distributor": "Mistral AI",
+          "description": "Enterprise-grade GGUF",
+          "tags": [
+            "gguf",
+            "enterprise",
+            "powerful",
+            "reasoning"
+          ]
+        },
+        {
+          "name": "Mixtral 8x7B",
+          "shortcut": "TheBloke/Mixtral-8x7B-Instruct-v0.1-GGUF",
+          "size_gb": 26.0,
+          "params": "8x7B",
+          "quantization": "Q4_K_M",
+          "distributor": "Mistral AI",
+          "description": "MoE GGUF",
+          "tags": [
+            "gguf",
+            "moe",
+            "efficient",
+            "powerful"
+          ]
+        },
+        {
+          "name": "Phi-3 Mini 4K Instruct",
+          "shortcut": "microsoft/Phi-3-mini-4k-instruct-gguf",
+          "size_gb": 2.5,
+          "params": "3.8B",
+          "quantization": "Q4",
+          "distributor": "Microsoft",
+          "description": "Compact reasoning GGUF",
+          "tags": [
+            "gguf",
+            "compact",
+            "reasoning",
+            "math"
+          ]
+        },
+        {
+          "name": "Phi-3 Medium",
+          "shortcut": "bartowski/Phi-3-medium-128k-instruct-GGUF",
+          "size_gb": 8.0,
+          "params": "14B",
+          "quantization": "Q4_K_M",
+          "distributor": "Microsoft",
+          "description": "Medium Phi GGUF",
+          "tags": [
+            "gguf",
+            "balanced",
+            "reasoning",
+            "math"
+          ]
+        },
+        {
+          "name": "Phi-3.5 Mini Instruct",
+          "shortcut": "bartowski/Phi-3.5-mini-instruct-GGUF",
+          "size_gb": 2.5,
+          "params": "3.8B",
+          "quantization": "Q4_K_M",
+          "distributor": "Microsoft",
+          "description": "Latest Phi GGUF",
+          "tags": [
+            "gguf",
+            "compact",
+            "fast",
+            "reasoning"
+          ]
+        },
+        {
+          "name": "Gemma 2 2B",
+          "shortcut": "bartowski/gemma-2-2b-it-GGUF",
+          "size_gb": 1.5,
+          "params": "2B",
+          "quantization": "Q4_K_M",
+          "distributor": "Google",
+          "description": "Lightweight Gemma GGUF",
+          "tags": [
+            "gguf",
+            "lightweight",
+            "fast",
+            "efficient"
+          ]
+        },
+        {
+          "name": "Gemma 2 9B IT",
+          "shortcut": "bartowski/gemma-2-9b-it-GGUF",
+          "size_gb": 5.5,
+          "params": "9B",
+          "quantization": "Q4_K_M",
+          "distributor": "Google",
+          "description": "Instruction tuned Gemma GGUF",
+          "tags": [
+            "gguf",
+            "instruct",
+            "balanced",
+            "chat"
+          ]
+        },
+        {
+          "name": "Gemma 2 27B",
+          "shortcut": "bartowski/gemma-2-27b-it-GGUF",
+          "size_gb": 16.0,
+          "params": "27B",
+          "quantization": "Q4_K_M",
+          "distributor": "Google",
+          "description": "Large Gemma GGUF",
+          "tags": [
+            "gguf",
+            "large",
+            "powerful",
+            "reasoning"
+          ]
+        },
+        {
+          "name": "DeepSeek Coder V2 Lite",
+          "shortcut": "bartowski/DeepSeek-Coder-V2-Lite-Instruct-GGUF",
+          "size_gb": 10.0,
+          "params": "16B",
+          "quantization": "Q4_K_M",
+          "distributor": "DeepSeek",
+          "description": "Advanced coding GGUF",
+          "tags": [
+            "gguf",
+            "code",
+            "programming",
+            "powerful"
+          ]
+        },
+        {
+          "name": "CodeLlama 7B Instruct",
+          "shortcut": "TheBloke/CodeLlama-7B-Instruct-GGUF",
+          "size_gb": 4.0,
+          "params": "7B",
+          "quantization": "Q4_K_M",
+          "distributor": "Meta",
+          "description": "Code instruction GGUF",
+          "tags": [
+            "gguf",
+            "code",
+            "instruct",
+            "programming"
+          ]
+        },
+        {
+          "name": "CodeLlama 13B",
+          "shortcut": "TheBloke/CodeLlama-13B-GGUF",
+          "size_gb": 7.5,
+          "params": "13B",
+          "quantization": "Q4_K_M",
+          "distributor": "Meta",
+          "description": "Larger code GGUF",
+          "tags": [
+            "gguf",
+            "code",
+            "programming",
+            "powerful"
+          ]
+        },
+        {
+          "name": "CodeLlama 34B",
+          "shortcut": "TheBloke/CodeLlama-34B-Instruct-GGUF",
+          "size_gb": 20.0,
+          "params": "34B",
+          "quantization": "Q4_K_M",
+          "distributor": "Meta",
+          "description": "Best CodeLlama GGUF",
+          "tags": [
+            "gguf",
+            "code",
+            "programming",
+            "large"
+          ]
+        },
+        {
+          "name": "StarCoder2 3B",
+          "shortcut": "bartowski/starcoder2-3b-GGUF",
+          "size_gb": 2.0,
+          "params": "3B",
+          "quantization": "Q4_K_M",
+          "distributor": "BigCode",
+          "description": "Compact coder GGUF",
+          "tags": [
+            "gguf",
+            "code",
+            "fast",
+            "programming"
+          ]
+        },
+        {
+          "name": "StarCoder2 7B",
+          "shortcut": "QuantFactory/starcoder2-7b-GGUF",
+          "size_gb": 4.5,
+          "params": "7B",
+          "quantization": "Q4_K_M",
+          "distributor": "BigCode",
+          "description": "Open source coder GGUF",
+          "tags": [
+            "gguf",
+            "code",
+            "open-source",
+            "programming"
+          ]
+        },
+        {
+          "name": "StarCoder2 15B",
+          "shortcut": "bartowski/starcoder2-15b-GGUF",
+          "size_gb": 9.0,
+          "params": "15B",
+          "quantization": "Q4_K_M",
+          "distributor": "BigCode",
+          "description": "Large coder GGUF",
+          "tags": [
+            "gguf",
+            "code",
+            "powerful",
+            "programming"
+          ]
+        }
       ]
     },
     "mlx": {
@@ -54,28 +470,306 @@
       "description": "MLX-optimized models for Apple Silicon (M1/M2/M3/M4). Provides fastest inference on Mac.",
       "backend": "mlx",
       "models": [
-        {"name": "Llama 3.2 1B Instruct MLX", "shortcut": "mlx-community/Llama-3.2-1B-Instruct-4bit", "size_gb": 0.9, "params": "1B", "quantization": "4bit", "distributor": "Meta", "description": "Ultra-fast on Apple Silicon", "tags": ["mlx", "mac", "fast", "chat"]},
-        {"name": "Llama 3.2 3B Instruct MLX", "shortcut": "mlx-community/Llama-3.2-3B-Instruct-4bit", "size_gb": 2.2, "params": "3B", "quantization": "4bit", "distributor": "Meta", "description": "Balanced MLX model", "tags": ["mlx", "mac", "balanced", "chat"]},
-        {"name": "Llama 3.1 8B Instruct MLX", "shortcut": "mlx-community/Meta-Llama-3.1-8B-Instruct-4bit", "size_gb": 5.5, "params": "8B", "quantization": "4bit", "distributor": "Meta", "description": "Powerful MLX model", "tags": ["mlx", "mac", "powerful", "chat"]},
-        {"name": "Llama 3.1 70B Instruct MLX", "shortcut": "mlx-community/Meta-Llama-3.1-70B-Instruct-4bit", "size_gb": 42.0, "params": "70B", "quantization": "4bit", "distributor": "Meta", "description": "Flagship MLX for Mac Studio/Pro", "tags": ["mlx", "mac", "large", "powerful"]},
-        {"name": "Qwen 2.5 0.5B MLX", "shortcut": "mlx-community/Qwen2.5-0.5B-Instruct-4bit", "size_gb": 0.5, "params": "0.5B", "quantization": "4bit", "distributor": "Alibaba", "description": "Tiny MLX model", "tags": ["mlx", "mac", "tiny", "fast"]},
-        {"name": "Qwen 2.5 1.5B MLX", "shortcut": "mlx-community/Qwen2.5-1.5B-Instruct-4bit", "size_gb": 1.1, "params": "1.5B", "quantization": "4bit", "distributor": "Alibaba", "description": "Compact MLX Qwen", "tags": ["mlx", "mac", "lightweight", "multilingual"]},
-        {"name": "Qwen 2.5 3B MLX", "shortcut": "mlx-community/Qwen2.5-3B-Instruct-4bit", "size_gb": 2.2, "params": "3B", "quantization": "4bit", "distributor": "Alibaba", "description": "Balanced MLX Qwen", "tags": ["mlx", "mac", "balanced", "multilingual"]},
-        {"name": "Qwen 2.5 7B Instruct MLX", "shortcut": "mlx-community/Qwen2.5-7B-Instruct-4bit", "size_gb": 4.8, "params": "7B", "quantization": "4bit", "distributor": "Alibaba", "description": "Excellent MLX reasoning", "tags": ["mlx", "mac", "reasoning", "multilingual"]},
-        {"name": "Qwen 2.5 14B MLX", "shortcut": "mlx-community/Qwen2.5-14B-Instruct-4bit", "size_gb": 9.5, "params": "14B", "quantization": "4bit", "distributor": "Alibaba", "description": "Large MLX Qwen", "tags": ["mlx", "mac", "large", "reasoning"]},
-        {"name": "Qwen 2.5 32B MLX", "shortcut": "mlx-community/Qwen2.5-32B-Instruct-4bit", "size_gb": 21.0, "params": "32B", "quantization": "4bit", "distributor": "Alibaba", "description": "Very large MLX Qwen", "tags": ["mlx", "mac", "very-large", "reasoning"]},
-        {"name": "Qwen 2.5 Coder 1.5B MLX", "shortcut": "mlx-community/Qwen2.5-Coder-1.5B-Instruct-4bit", "size_gb": 1.1, "params": "1.5B", "quantization": "4bit", "distributor": "Alibaba", "description": "Fast MLX coding", "tags": ["mlx", "mac", "code", "fast"]},
-        {"name": "Qwen 2.5 Coder 7B MLX", "shortcut": "mlx-community/Qwen2.5-Coder-7B-Instruct-4bit", "size_gb": 4.8, "params": "7B", "quantization": "4bit", "distributor": "Alibaba", "description": "Powerful MLX coding", "tags": ["mlx", "mac", "code", "powerful"]},
-        {"name": "Mistral 7B Instruct MLX", "shortcut": "mlx-community/Mistral-7B-Instruct-v0.3-4bit", "size_gb": 4.8, "params": "7B", "quantization": "4bit", "distributor": "Mistral AI", "description": "Fast MLX Mistral", "tags": ["mlx", "mac", "fast", "efficient"]},
-        {"name": "Mixtral 8x7B MLX", "shortcut": "mlx-community/Mixtral-8x7B-Instruct-v0.1-4bit", "size_gb": 28.0, "params": "8x7B", "quantization": "4bit", "distributor": "Mistral AI", "description": "MoE MLX model", "tags": ["mlx", "mac", "moe", "powerful"]},
-        {"name": "Phi-3 Mini MLX", "shortcut": "mlx-community/Phi-3-mini-4k-instruct-4bit", "size_gb": 2.6, "params": "3.8B", "quantization": "4bit", "distributor": "Microsoft", "description": "Compact MLX Phi", "tags": ["mlx", "mac", "compact", "reasoning"]},
-        {"name": "Phi-3 Medium MLX", "shortcut": "mlx-community/Phi-3-medium-128k-instruct-4bit", "size_gb": 8.5, "params": "14B", "quantization": "4bit", "distributor": "Microsoft", "description": "Medium MLX Phi", "tags": ["mlx", "mac", "balanced", "math"]},
-        {"name": "Gemma 2 2B MLX", "shortcut": "mlx-community/gemma-2-2b-it-4bit", "size_gb": 1.6, "params": "2B", "quantization": "4bit", "distributor": "Google", "description": "Lightweight MLX Gemma", "tags": ["mlx", "mac", "lightweight", "efficient"]},
-        {"name": "Gemma 2 9B MLX", "shortcut": "mlx-community/gemma-2-9b-it-4bit", "size_gb": 6.0, "params": "9B", "quantization": "4bit", "distributor": "Google", "description": "Balanced MLX Gemma", "tags": ["mlx", "mac", "balanced", "reasoning"]},
-        {"name": "DeepSeek R1 Distill 1.5B MLX", "shortcut": "mlx-community/DeepSeek-R1-Distill-Qwen-1.5B-4bit", "size_gb": 1.1, "params": "1.5B", "quantization": "4bit", "distributor": "DeepSeek", "description": "Compact MLX reasoning", "tags": ["mlx", "mac", "reasoning", "fast"]},
-        {"name": "DeepSeek R1 Distill 7B MLX", "shortcut": "mlx-community/DeepSeek-R1-Distill-Qwen-7B-4bit", "size_gb": 4.8, "params": "7B", "quantization": "4bit", "distributor": "DeepSeek", "description": "MLX reasoning model", "tags": ["mlx", "mac", "reasoning", "powerful"]},
-        {"name": "CodeLlama 7B MLX", "shortcut": "mlx-community/CodeLlama-7b-Instruct-hf-4bit-MLX", "size_gb": 4.2, "params": "7B", "quantization": "4bit", "distributor": "Meta", "description": "MLX code model", "tags": ["mlx", "mac", "code", "programming"]},
-        {"name": "StarCoder2 7B MLX", "shortcut": "mlx-community/starcoder2-7b-4bit", "size_gb": 4.8, "params": "7B", "quantization": "4bit", "distributor": "BigCode", "description": "MLX open coder", "tags": ["mlx", "mac", "code", "opensource"]}
+        {
+          "name": "Llama 3.2 1B Instruct MLX",
+          "shortcut": "mlx-community/Llama-3.2-1B-Instruct-4bit",
+          "size_gb": 0.9,
+          "params": "1B",
+          "quantization": "4bit",
+          "distributor": "Meta",
+          "description": "Ultra-fast on Apple Silicon",
+          "tags": [
+            "mlx",
+            "mac",
+            "fast",
+            "chat"
+          ]
+        },
+        {
+          "name": "Llama 3.2 3B Instruct MLX",
+          "shortcut": "mlx-community/Llama-3.2-3B-Instruct-4bit",
+          "size_gb": 2.2,
+          "params": "3B",
+          "quantization": "4bit",
+          "distributor": "Meta",
+          "description": "Balanced MLX model",
+          "tags": [
+            "mlx",
+            "mac",
+            "balanced",
+            "chat"
+          ]
+        },
+        {
+          "name": "Llama 3.1 8B Instruct MLX",
+          "shortcut": "mlx-community/Meta-Llama-3.1-8B-Instruct-4bit",
+          "size_gb": 5.5,
+          "params": "8B",
+          "quantization": "4bit",
+          "distributor": "Meta",
+          "description": "Powerful MLX model",
+          "tags": [
+            "mlx",
+            "mac",
+            "powerful",
+            "chat"
+          ]
+        },
+        {
+          "name": "Llama 3.1 70B Instruct MLX",
+          "shortcut": "mlx-community/Meta-Llama-3.1-70B-Instruct-4bit",
+          "size_gb": 42.0,
+          "params": "70B",
+          "quantization": "4bit",
+          "distributor": "Meta",
+          "description": "Flagship MLX for Mac Studio/Pro",
+          "tags": [
+            "mlx",
+            "mac",
+            "large",
+            "powerful"
+          ]
+        },
+        {
+          "name": "Qwen 2.5 0.5B MLX",
+          "shortcut": "mlx-community/Qwen2.5-0.5B-Instruct-4bit",
+          "size_gb": 0.5,
+          "params": "0.5B",
+          "quantization": "4bit",
+          "distributor": "Alibaba",
+          "description": "Tiny MLX model",
+          "tags": [
+            "mlx",
+            "mac",
+            "tiny",
+            "fast"
+          ]
+        },
+        {
+          "name": "Qwen 2.5 1.5B MLX",
+          "shortcut": "mlx-community/Qwen2.5-1.5B-Instruct-4bit",
+          "size_gb": 1.1,
+          "params": "1.5B",
+          "quantization": "4bit",
+          "distributor": "Alibaba",
+          "description": "Compact MLX Qwen",
+          "tags": [
+            "mlx",
+            "mac",
+            "lightweight",
+            "multilingual"
+          ]
+        },
+        {
+          "name": "Qwen 2.5 3B MLX",
+          "shortcut": "mlx-community/Qwen2.5-3B-Instruct-4bit",
+          "size_gb": 2.2,
+          "params": "3B",
+          "quantization": "4bit",
+          "distributor": "Alibaba",
+          "description": "Balanced MLX Qwen",
+          "tags": [
+            "mlx",
+            "mac",
+            "balanced",
+            "multilingual"
+          ]
+        },
+        {
+          "name": "Qwen 2.5 7B Instruct MLX",
+          "shortcut": "mlx-community/Qwen2.5-7B-Instruct-4bit",
+          "size_gb": 4.8,
+          "params": "7B",
+          "quantization": "4bit",
+          "distributor": "Alibaba",
+          "description": "Excellent MLX reasoning",
+          "tags": [
+            "mlx",
+            "mac",
+            "reasoning",
+            "multilingual"
+          ]
+        },
+        {
+          "name": "Qwen 2.5 14B MLX",
+          "shortcut": "mlx-community/Qwen2.5-14B-Instruct-4bit",
+          "size_gb": 9.5,
+          "params": "14B",
+          "quantization": "4bit",
+          "distributor": "Alibaba",
+          "description": "Large MLX Qwen",
+          "tags": [
+            "mlx",
+            "mac",
+            "large",
+            "reasoning"
+          ]
+        },
+        {
+          "name": "Qwen 2.5 32B MLX",
+          "shortcut": "mlx-community/Qwen2.5-32B-Instruct-4bit",
+          "size_gb": 21.0,
+          "params": "32B",
+          "quantization": "4bit",
+          "distributor": "Alibaba",
+          "description": "Very large MLX Qwen",
+          "tags": [
+            "mlx",
+            "mac",
+            "very-large",
+            "reasoning"
+          ]
+        },
+        {
+          "name": "Qwen 2.5 Coder 1.5B MLX",
+          "shortcut": "mlx-community/Qwen2.5-Coder-1.5B-Instruct-4bit",
+          "size_gb": 1.1,
+          "params": "1.5B",
+          "quantization": "4bit",
+          "distributor": "Alibaba",
+          "description": "Fast MLX coding",
+          "tags": [
+            "mlx",
+            "mac",
+            "code",
+            "fast"
+          ]
+        },
+        {
+          "name": "Qwen 2.5 Coder 7B MLX",
+          "shortcut": "mlx-community/Qwen2.5-Coder-7B-Instruct-4bit",
+          "size_gb": 4.8,
+          "params": "7B",
+          "quantization": "4bit",
+          "distributor": "Alibaba",
+          "description": "Powerful MLX coding",
+          "tags": [
+            "mlx",
+            "mac",
+            "code",
+            "powerful"
+          ]
+        },
+        {
+          "name": "Mistral 7B Instruct MLX",
+          "shortcut": "mlx-community/Mistral-7B-Instruct-v0.3-4bit",
+          "size_gb": 4.8,
+          "params": "7B",
+          "quantization": "4bit",
+          "distributor": "Mistral AI",
+          "description": "Fast MLX Mistral",
+          "tags": [
+            "mlx",
+            "mac",
+            "fast",
+            "efficient"
+          ]
+        },
+        {
+          "name": "Mixtral 8x7B MLX",
+          "shortcut": "mlx-community/Mixtral-8x7B-Instruct-v0.1-4bit",
+          "size_gb": 28.0,
+          "params": "8x7B",
+          "quantization": "4bit",
+          "distributor": "Mistral AI",
+          "description": "MoE MLX model",
+          "tags": [
+            "mlx",
+            "mac",
+            "moe",
+            "powerful"
+          ]
+        },
+        {
+          "name": "Phi-3 Mini MLX",
+          "shortcut": "mlx-community/Phi-3-mini-4k-instruct-4bit",
+          "size_gb": 2.6,
+          "params": "3.8B",
+          "quantization": "4bit",
+          "distributor": "Microsoft",
+          "description": "Compact MLX Phi",
+          "tags": [
+            "mlx",
+            "mac",
+            "compact",
+            "reasoning"
+          ]
+        },
+        {
+          "name": "Phi-3 Medium MLX",
+          "shortcut": "mlx-community/Phi-3-medium-128k-instruct-4bit",
+          "size_gb": 8.5,
+          "params": "14B",
+          "quantization": "4bit",
+          "distributor": "Microsoft",
+          "description": "Medium MLX Phi",
+          "tags": [
+            "mlx",
+            "mac",
+            "balanced",
+            "math"
+          ]
+        },
+        {
+          "name": "Gemma 2 2B MLX",
+          "shortcut": "mlx-community/gemma-2-2b-it-4bit",
+          "size_gb": 1.6,
+          "params": "2B",
+          "quantization": "4bit",
+          "distributor": "Google",
+          "description": "Lightweight MLX Gemma",
+          "tags": [
+            "mlx",
+            "mac",
+            "lightweight",
+            "efficient"
+          ]
+        },
+        {
+          "name": "Gemma 2 9B MLX",
+          "shortcut": "mlx-community/gemma-2-9b-it-4bit",
+          "size_gb": 6.0,
+          "params": "9B",
+          "quantization": "4bit",
+          "distributor": "Google",
+          "description": "Balanced MLX Gemma",
+          "tags": [
+            "mlx",
+            "mac",
+            "balanced",
+            "reasoning"
+          ]
+        },
+        {
+          "name": "CodeLlama 7B MLX",
+          "shortcut": "mlx-community/CodeLlama-7b-Instruct-hf-4bit-MLX",
+          "size_gb": 4.2,
+          "params": "7B",
+          "quantization": "4bit",
+          "distributor": "Meta",
+          "description": "MLX code model",
+          "tags": [
+            "mlx",
+            "mac",
+            "code",
+            "programming"
+          ]
+        },
+        {
+          "name": "StarCoder2 7B MLX",
+          "shortcut": "mlx-community/starcoder2-7b-4bit",
+          "size_gb": 4.8,
+          "params": "7B",
+          "quantization": "4bit",
+          "distributor": "BigCode",
+          "description": "MLX open coder",
+          "tags": [
+            "mlx",
+            "mac",
+            "code",
+            "opensource"
+          ]
+        }
       ]
     },
     "safetensors": {
@@ -86,28 +780,286 @@
       "description": "Full-precision safetensors models. Best quality, requires more resources. Compatible with transformers backend.",
       "backend": "transformers",
       "models": [
-        {"name": "Llama 3.2 1B Instruct", "shortcut": "meta-llama/Llama-3.2-1B-Instruct", "size_gb": 2.5, "params": "1B", "quantization": "FP16", "distributor": "Meta", "description": "Full precision Llama", "tags": ["safetensors", "fp16", "chat"]},
-        {"name": "Llama 3.2 3B Instruct", "shortcut": "meta-llama/Llama-3.2-3B-Instruct", "size_gb": 6.2, "params": "3B", "quantization": "FP16", "distributor": "Meta", "description": "Full precision balanced", "tags": ["safetensors", "fp16", "chat"]},
-        {"name": "Llama 3.1 8B Instruct", "shortcut": "meta-llama/Meta-Llama-3.1-8B-Instruct", "size_gb": 16.0, "params": "8B", "quantization": "FP16", "distributor": "Meta", "description": "Full precision flagship", "tags": ["safetensors", "fp16", "powerful"]},
-        {"name": "Qwen 2.5 0.5B", "shortcut": "Qwen/Qwen2.5-0.5B-Instruct", "size_gb": 1.0, "params": "0.5B", "quantization": "FP16", "distributor": "Alibaba", "description": "Full precision tiny", "tags": ["safetensors", "fp16", "tiny"]},
-        {"name": "Qwen 2.5 1.5B", "shortcut": "Qwen/Qwen2.5-1.5B-Instruct", "size_gb": 3.1, "params": "1.5B", "quantization": "FP16", "distributor": "Alibaba", "description": "Full precision compact", "tags": ["safetensors", "fp16", "lightweight"]},
-        {"name": "Qwen 2.5 3B", "shortcut": "Qwen/Qwen2.5-3B-Instruct", "size_gb": 6.2, "params": "3B", "quantization": "FP16", "distributor": "Alibaba", "description": "Full precision balanced", "tags": ["safetensors", "fp16", "multilingual"]},
-        {"name": "Qwen 2.5 7B Instruct", "shortcut": "Qwen/Qwen2.5-7B-Instruct", "size_gb": 15.0, "params": "7B", "quantization": "FP16", "distributor": "Alibaba", "description": "Full precision 7B", "tags": ["safetensors", "fp16", "reasoning"]},
-        {"name": "Qwen 2.5 14B", "shortcut": "Qwen/Qwen2.5-14B-Instruct", "size_gb": 29.0, "params": "14B", "quantization": "FP16", "distributor": "Alibaba", "description": "Full precision 14B", "tags": ["safetensors", "fp16", "large"]},
-        {"name": "Qwen 2.5 Coder 1.5B", "shortcut": "Qwen/Qwen2.5-Coder-1.5B-Instruct", "size_gb": 3.1, "params": "1.5B", "quantization": "FP16", "distributor": "Alibaba", "description": "Full precision coding", "tags": ["safetensors", "fp16", "code"]},
-        {"name": "Qwen 2.5 Coder 7B", "shortcut": "Qwen/Qwen2.5-Coder-7B-Instruct", "size_gb": 15.0, "params": "7B", "quantization": "FP16", "distributor": "Alibaba", "description": "Full precision coder", "tags": ["safetensors", "fp16", "code"]},
-        {"name": "Mistral 7B Instruct v0.3", "shortcut": "mistralai/Mistral-7B-Instruct-v0.3", "size_gb": 14.5, "params": "7B", "quantization": "FP16", "distributor": "Mistral AI", "description": "Full precision Mistral", "tags": ["safetensors", "fp16", "efficient"]},
-        {"name": "Mixtral 8x7B", "shortcut": "mistralai/Mixtral-8x7B-Instruct-v0.1", "size_gb": 90.0, "params": "8x7B", "quantization": "FP16", "distributor": "Mistral AI", "description": "Full precision MoE", "tags": ["safetensors", "fp16", "moe"]},
-        {"name": "Phi-3 Mini 4K", "shortcut": "microsoft/Phi-3-mini-4k-instruct", "size_gb": 7.6, "params": "3.8B", "quantization": "FP16", "distributor": "Microsoft", "description": "Full precision Phi", "tags": ["safetensors", "fp16", "reasoning"]},
-        {"name": "Phi-3 Medium", "shortcut": "microsoft/Phi-3-medium-128k-instruct", "size_gb": 28.0, "params": "14B", "quantization": "FP16", "distributor": "Microsoft", "description": "Full precision medium", "tags": ["safetensors", "fp16", "math"]},
-        {"name": "Gemma 2 2B", "shortcut": "google/gemma-2-2b-it", "size_gb": 5.0, "params": "2B", "quantization": "FP16", "distributor": "Google", "description": "Full precision lightweight", "tags": ["safetensors", "fp16", "lightweight"]},
-        {"name": "Gemma 2 9B", "shortcut": "google/gemma-2-9b-it", "size_gb": 18.0, "params": "9B", "quantization": "FP16", "distributor": "Google", "description": "Full precision balanced", "tags": ["safetensors", "fp16", "balanced"]},
-        {"name": "DeepSeek R1 Distill 1.5B", "shortcut": "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B", "size_gb": 3.1, "params": "1.5B", "quantization": "FP16", "distributor": "DeepSeek", "description": "Full precision reasoning", "tags": ["safetensors", "fp16", "reasoning"]},
-        {"name": "DeepSeek R1 Distill 7B", "shortcut": "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B", "size_gb": 15.0, "params": "7B", "quantization": "FP16", "distributor": "DeepSeek", "description": "Full precision reasoning", "tags": ["safetensors", "fp16", "reasoning"]},
-        {"name": "DeepSeek Coder V2 Lite", "shortcut": "deepseek-ai/DeepSeek-Coder-V2-Lite-Instruct", "size_gb": 32.0, "params": "16B", "quantization": "FP16", "distributor": "DeepSeek", "description": "Full precision coding", "tags": ["safetensors", "fp16", "code"]},
-        {"name": "CodeLlama 7B", "shortcut": "codellama/CodeLlama-7b-Instruct-hf", "size_gb": 14.0, "params": "7B", "quantization": "FP16", "distributor": "Meta", "description": "Full precision code", "tags": ["safetensors", "fp16", "code"]},
-        {"name": "StarCoder2 3B", "shortcut": "bigcode/starcoder2-3b", "size_gb": 6.2, "params": "3B", "quantization": "FP16", "distributor": "BigCode", "description": "Full precision compact coder", "tags": ["safetensors", "fp16", "code"]},
-        {"name": "StarCoder2 7B", "shortcut": "bigcode/starcoder2-7b", "size_gb": 14.0, "params": "7B", "quantization": "FP16", "distributor": "BigCode", "description": "Full precision balanced coder", "tags": ["safetensors", "fp16", "code"]}
+        {
+          "name": "Llama 3.2 1B Instruct",
+          "shortcut": "meta-llama/Llama-3.2-1B-Instruct",
+          "size_gb": 2.5,
+          "params": "1B",
+          "quantization": "FP16",
+          "distributor": "Meta",
+          "description": "Full precision Llama",
+          "tags": [
+            "safetensors",
+            "fp16",
+            "chat"
+          ]
+        },
+        {
+          "name": "Llama 3.2 3B Instruct",
+          "shortcut": "meta-llama/Llama-3.2-3B-Instruct",
+          "size_gb": 6.2,
+          "params": "3B",
+          "quantization": "FP16",
+          "distributor": "Meta",
+          "description": "Full precision balanced",
+          "tags": [
+            "safetensors",
+            "fp16",
+            "chat"
+          ]
+        },
+        {
+          "name": "Llama 3.1 8B Instruct",
+          "shortcut": "meta-llama/Meta-Llama-3.1-8B-Instruct",
+          "size_gb": 16.0,
+          "params": "8B",
+          "quantization": "FP16",
+          "distributor": "Meta",
+          "description": "Full precision flagship",
+          "tags": [
+            "safetensors",
+            "fp16",
+            "powerful"
+          ]
+        },
+        {
+          "name": "Qwen 2.5 0.5B",
+          "shortcut": "Qwen/Qwen2.5-0.5B-Instruct",
+          "size_gb": 1.0,
+          "params": "0.5B",
+          "quantization": "FP16",
+          "distributor": "Alibaba",
+          "description": "Full precision tiny",
+          "tags": [
+            "safetensors",
+            "fp16",
+            "tiny"
+          ]
+        },
+        {
+          "name": "Qwen 2.5 1.5B",
+          "shortcut": "Qwen/Qwen2.5-1.5B-Instruct",
+          "size_gb": 3.1,
+          "params": "1.5B",
+          "quantization": "FP16",
+          "distributor": "Alibaba",
+          "description": "Full precision compact",
+          "tags": [
+            "safetensors",
+            "fp16",
+            "lightweight"
+          ]
+        },
+        {
+          "name": "Qwen 2.5 3B",
+          "shortcut": "Qwen/Qwen2.5-3B-Instruct",
+          "size_gb": 6.2,
+          "params": "3B",
+          "quantization": "FP16",
+          "distributor": "Alibaba",
+          "description": "Full precision balanced",
+          "tags": [
+            "safetensors",
+            "fp16",
+            "multilingual"
+          ]
+        },
+        {
+          "name": "Qwen 2.5 7B Instruct",
+          "shortcut": "Qwen/Qwen2.5-7B-Instruct",
+          "size_gb": 15.0,
+          "params": "7B",
+          "quantization": "FP16",
+          "distributor": "Alibaba",
+          "description": "Full precision 7B",
+          "tags": [
+            "safetensors",
+            "fp16",
+            "reasoning"
+          ]
+        },
+        {
+          "name": "Qwen 2.5 14B",
+          "shortcut": "Qwen/Qwen2.5-14B-Instruct",
+          "size_gb": 29.0,
+          "params": "14B",
+          "quantization": "FP16",
+          "distributor": "Alibaba",
+          "description": "Full precision 14B",
+          "tags": [
+            "safetensors",
+            "fp16",
+            "large"
+          ]
+        },
+        {
+          "name": "Qwen 2.5 Coder 1.5B",
+          "shortcut": "Qwen/Qwen2.5-Coder-1.5B-Instruct",
+          "size_gb": 3.1,
+          "params": "1.5B",
+          "quantization": "FP16",
+          "distributor": "Alibaba",
+          "description": "Full precision coding",
+          "tags": [
+            "safetensors",
+            "fp16",
+            "code"
+          ]
+        },
+        {
+          "name": "Qwen 2.5 Coder 7B",
+          "shortcut": "Qwen/Qwen2.5-Coder-7B-Instruct",
+          "size_gb": 15.0,
+          "params": "7B",
+          "quantization": "FP16",
+          "distributor": "Alibaba",
+          "description": "Full precision coder",
+          "tags": [
+            "safetensors",
+            "fp16",
+            "code"
+          ]
+        },
+        {
+          "name": "Mistral 7B Instruct v0.3",
+          "shortcut": "mistralai/Mistral-7B-Instruct-v0.3",
+          "size_gb": 14.5,
+          "params": "7B",
+          "quantization": "FP16",
+          "distributor": "Mistral AI",
+          "description": "Full precision Mistral",
+          "tags": [
+            "safetensors",
+            "fp16",
+            "efficient"
+          ]
+        },
+        {
+          "name": "Mixtral 8x7B",
+          "shortcut": "mistralai/Mixtral-8x7B-Instruct-v0.1",
+          "size_gb": 90.0,
+          "params": "8x7B",
+          "quantization": "FP16",
+          "distributor": "Mistral AI",
+          "description": "Full precision MoE",
+          "tags": [
+            "safetensors",
+            "fp16",
+            "moe"
+          ]
+        },
+        {
+          "name": "Phi-3 Mini 4K",
+          "shortcut": "microsoft/Phi-3-mini-4k-instruct",
+          "size_gb": 7.6,
+          "params": "3.8B",
+          "quantization": "FP16",
+          "distributor": "Microsoft",
+          "description": "Full precision Phi",
+          "tags": [
+            "safetensors",
+            "fp16",
+            "reasoning"
+          ]
+        },
+        {
+          "name": "Phi-3 Medium",
+          "shortcut": "microsoft/Phi-3-medium-128k-instruct",
+          "size_gb": 28.0,
+          "params": "14B",
+          "quantization": "FP16",
+          "distributor": "Microsoft",
+          "description": "Full precision medium",
+          "tags": [
+            "safetensors",
+            "fp16",
+            "math"
+          ]
+        },
+        {
+          "name": "Gemma 2 2B",
+          "shortcut": "google/gemma-2-2b-it",
+          "size_gb": 5.0,
+          "params": "2B",
+          "quantization": "FP16",
+          "distributor": "Google",
+          "description": "Full precision lightweight",
+          "tags": [
+            "safetensors",
+            "fp16",
+            "lightweight"
+          ]
+        },
+        {
+          "name": "Gemma 2 9B",
+          "shortcut": "google/gemma-2-9b-it",
+          "size_gb": 18.0,
+          "params": "9B",
+          "quantization": "FP16",
+          "distributor": "Google",
+          "description": "Full precision balanced",
+          "tags": [
+            "safetensors",
+            "fp16",
+            "balanced"
+          ]
+        },
+        {
+          "name": "DeepSeek Coder V2 Lite",
+          "shortcut": "deepseek-ai/DeepSeek-Coder-V2-Lite-Instruct",
+          "size_gb": 32.0,
+          "params": "16B",
+          "quantization": "FP16",
+          "distributor": "DeepSeek",
+          "description": "Full precision coding",
+          "tags": [
+            "safetensors",
+            "fp16",
+            "code"
+          ]
+        },
+        {
+          "name": "CodeLlama 7B",
+          "shortcut": "codellama/CodeLlama-7b-Instruct-hf",
+          "size_gb": 14.0,
+          "params": "7B",
+          "quantization": "FP16",
+          "distributor": "Meta",
+          "description": "Full precision code",
+          "tags": [
+            "safetensors",
+            "fp16",
+            "code"
+          ]
+        },
+        {
+          "name": "StarCoder2 3B",
+          "shortcut": "bigcode/starcoder2-3b",
+          "size_gb": 6.2,
+          "params": "3B",
+          "quantization": "FP16",
+          "distributor": "BigCode",
+          "description": "Full precision compact coder",
+          "tags": [
+            "safetensors",
+            "fp16",
+            "code"
+          ]
+        },
+        {
+          "name": "StarCoder2 7B",
+          "shortcut": "bigcode/starcoder2-7b",
+          "size_gb": 14.0,
+          "params": "7B",
+          "quantization": "FP16",
+          "distributor": "BigCode",
+          "description": "Full precision balanced coder",
+          "tags": [
+            "safetensors",
+            "fp16",
+            "code"
+          ]
+        }
       ]
     }
   }
