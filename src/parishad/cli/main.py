@@ -76,8 +76,17 @@ def first_run() -> bool:
         True if setup completed, False if user declined
     """
     from .code import LOGO
-    console.print(LOGO)
-    console.print("[dim]पारिषद् में आपका स्वागत है![/dim]")
+    import re
+    # Manually center each line to match TUI's content width
+    # (TUI's text-align:center uses terminal width minus ~2 for scrollbar)
+    tui_width = console.width - 2
+    centered_lines = []
+    for line in LOGO.split('\n'):
+        visible_len = len(re.sub(r'\[.*?\]', '', line))
+        pad = max(0, (tui_width - visible_len) // 2)
+        centered_lines.append(' ' * pad + line)
+    console.print('\n'.join(centered_lines))
+    console.print("[dim]पारिषद में आपका स्वागत है![/dim]")
     console.print()
     
     # Permission 1: Read access
@@ -178,7 +187,7 @@ def cli(ctx):
     """
     🏛️ Parishad - एक लोकसभा-शैली LLM प्रणाली विश्वसनीय तर्क के लिए।
     
-    पारिषद् लोकसभा (Parishad LokSabha) - A structured council of LLMs
+    पारिषद लोकसभा (Parishad LokSabha) - A structured council of LLMs
     for reliable reasoning with budget tracking and systematic verification.
     
     Run 'parishad' without arguments to launch the interactive TUI.
@@ -391,7 +400,7 @@ def run(
     # Show progress
     if not json_output:
         # Use ASCII-safe title to avoid Windows encoding issues
-        title = "Parishad LokSabha" if not UNICODE_SUPPORTED else "🏛️ पारिषद् लोकसभा"
+        title = "Parishad LokSabha" if not UNICODE_SUPPORTED else "🏛️ पारिषद लोकसभा"
         
         # Build subtitle with current settings
         subtitle_parts = []

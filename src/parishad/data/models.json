@@ -781,48 +781,6 @@
       "backend": "transformers",
       "models": [
         {
-          "name": "Llama 3.2 1B Instruct",
-          "shortcut": "meta-llama/Llama-3.2-1B-Instruct",
-          "size_gb": 2.5,
-          "params": "1B",
-          "quantization": "FP16",
-          "distributor": "Meta",
-          "description": "Full precision Llama",
-          "tags": [
-            "safetensors",
-            "fp16",
-            "chat"
-          ]
-        },
-        {
-          "name": "Llama 3.2 3B Instruct",
-          "shortcut": "meta-llama/Llama-3.2-3B-Instruct",
-          "size_gb": 6.2,
-          "params": "3B",
-          "quantization": "FP16",
-          "distributor": "Meta",
-          "description": "Full precision balanced",
-          "tags": [
-            "safetensors",
-            "fp16",
-            "chat"
-          ]
-        },
-        {
-          "name": "Llama 3.1 8B Instruct",
-          "shortcut": "meta-llama/Meta-Llama-3.1-8B-Instruct",
-          "size_gb": 16.0,
-          "params": "8B",
-          "quantization": "FP16",
-          "distributor": "Meta",
-          "description": "Full precision flagship",
-          "tags": [
-            "safetensors",
-            "fp16",
-            "powerful"
-          ]
-        },
-        {
           "name": "Qwen 2.5 0.5B",
           "shortcut": "Qwen/Qwen2.5-0.5B-Instruct",
           "size_gb": 1.0,

@@ -101,9 +101,14 @@ class ParishadConfig:
         # Store full config for preservation
         extra = full_config if full_config else {}
         
+        # Normalize backend value (fix old configs that stored format instead of backend)
+        backend = session_data.get("backend")
+        if backend:
+            backend = map_source_to_backend(backend)  # Convert format to backend if needed
+        
         return cls(
             sabha=session_data.get("sabha"),
-            backend=session_data.get("backend"),
+            backend=backend,
             model=session_data.get("model"),
             cwd=session_data.get("cwd", ""),
             setup_complete=session_data.get("setup_complete", False),
@@ -563,7 +568,7 @@ def build_augmented_prompt(user_query: str, loaded_files: List[LoadedFile], flag
 
 
 # ASCII logo - Devanagari परिषद् with left-to-right saffron gradient (vibrant)
-LOGO = """[#e65e1c]   ██████[/][#ff671f]        [/][#ff7a3d]        [/]
+LOGO = """[#e65e1c]     ██████[/][#ff671f]        [/][#ff7a3d]        [/]
 [#e65e1c]  ██ ╔═[/][#ff671f]═██     [/][#ff7a3d]        [/]
 [#e65e1c]███████[/][#ff671f]██████████[/][#ff7a3d]███████[/][#ff8c5a]████████[/][#ff9e78]████████[/][#ffb095]██████████═╗[/]
 [#e65e1c]  ╚═██ ╔═[/][#ff671f]═██ ╔═██[/][#ff7a3d] ╔═▀▀▀▀█[/][#ff8c5a]█ ╔═███╔[/][#ff9e78]══██ ╔═[/][#ffb095]══════██ ╔═╝[/]
@@ -1558,7 +1563,14 @@ class SetupScreen(Screen):
                 if sabha.id == initial_config.sabha:
                     self.selected_sabha = sabha
                     break
-            self.current_source = initial_config.backend
+            # Convert backend to source format (reverse mapping)
+            backend_to_source = {
+                "llama_cpp": "gguf",
+                "mlx": "mlx", 
+                "transformers": "safetensors",
+                "ollama": "gguf",  # Default ollama to gguf for UI
+            }
+            self.current_source = backend_to_source.get(initial_config.backend, "gguf")
     
     def compose(self) -> ComposeResult:
         # Everything in one scrollable container
@@ -1593,9 +1605,9 @@ class SetupScreen(Screen):
                 # Model browser with format tabs
                 with Container(id="model-browser-container"):
                     yield Horizontal(
-                        Button("🔷 GGUF", id="tab-gguf", classes="model-tab active"),
-                        Button("🍎 MLX", id="tab-mlx", classes="model-tab"),
-                        Button("🛡️ Safetensors", id="tab-safetensors", classes="model-tab"),
+                        Button("🦙 GGUF", id="tab-gguf", classes="model-tab active"),
+                        Button(Text.from_markup("[white][/] MLX"), id="tab-mlx", classes="model-tab"),
+                        Button("🤗 Safetensors", id="tab-safetensors", classes="model-tab"),
                         classes="model-tabs"
                     )
                     
@@ -1782,11 +1794,15 @@ class SetupScreen(Screen):
             # Re-setup scenario - abort and keep existing config
             self.dismiss(self.initial_config)
         else:
-            # First-run scenario - create default config
+            # First-run scenario - create default config with auto-detected backend
+            # Detect what's available on the system
+            available_backends = detect_available_backends()
+            default_backend = "llama_cpp" if available_backends.get("llama_cpp", (False, ""))[0] else "ollama"
+            
             default_config = ParishadConfig(
                 sabha="laghu",
-                backend="ollama",  # Default to Ollama (matches CLI)
-                model="qwen2.5:1.5b",  # Small Ollama model
+                backend=default_backend,  # Auto-detect based on what's installed
+                model="qwen2.5:1.5b",  # Small default model
                 cwd=str(Path.cwd())
             )
             save_parishad_config(default_config)
@@ -1807,7 +1823,7 @@ class SetupScreen(Screen):
             
             new_config = ParishadConfig(
                 sabha=self.selected_sabha.id,
-                backend=self.current_source,  # Format: gguf/mlx/safetensors
+                backend=map_source_to_backend(self.current_source),  # Map format to backend
                 model=primary_model,  # Model ID for ModelManager
                 cwd=str(Path.cwd())
             )
@@ -1876,26 +1892,23 @@ class SetupScreen(Screen):
                 # Reset progress for new file
                 pbar.update(total=100, progress=0)
                 
-                # This is EXACTLY what CLI does in main.py:download_model
+                # Download using thread pool (safe now: urllib-based, no subprocess)
                 def _do_download():
-                    """Execute download in thread pool (production-safe)."""
-                    # DEBUG LOGGING
+                    """Execute download in thread pool."""
                     db_path = Path.home() / "parishad_debug.log"
                     with open(db_path, "a") as f:
-                        f.write(f"DEBUG: Starting download for {model_info.name} from {model_info.source}\n")
+                        f.write(f"DEBUG: Starting download for {model_info.name} source={model_info.source}\n")
                     
                     def _progress(p):
                         """Track download progress and update TUI safely."""
                         if p.total_bytes > 0:
-                            # Calculate percentage
                             percent = (p.downloaded_bytes / p.total_bytes) * 100
-                            # Update TUI from thread
                             self.app.call_from_thread(pbar.update, progress=percent)
                         
                     try:
                         res = manager.download(
                             model_spec=model_info.shortcut,
-                            source="huggingface" if model_info.source == "huggingface" else model_info.source, 
+                            source=model_info.source, 
                             progress_callback=_progress
                         )
                         with open(db_path, "a") as f:
@@ -1906,9 +1919,9 @@ class SetupScreen(Screen):
                         import traceback
                         with open(db_path, "a") as f:
                             traceback.print_exc(file=f)
-                        return False # Explicit failure return
+                        return False
 
-                    return True # Explicit success return
+                    return True
                 
                 # Run in thread pool to avoid blocking TUI
                 success = await loop.run_in_executor(None, _do_download)
@@ -2282,6 +2295,20 @@ class ParishadApp(App):
             self.model = model or self.config.model
             self.backend = backend or self.config.backend
             self.sabha = sabha or self.config.sabha
+            
+            # Auto-detect backend if None or invalid
+            if not self.backend or self.backend == "none":
+                available_backends = detect_available_backends()
+                if available_backends.get("llama_cpp", (False, ""))[0]:
+                    self.backend = "llama_cpp"
+                elif available_backends.get("ollama", (False, ""))[0]:
+                    self.backend = "ollama"
+                else:
+                    self.backend = "llama_cpp"  # Default fallback
+                # Update config with detected backend
+                if self.config:
+                    self.config.backend = self.backend
+                    save_parishad_config(self.config)
         else:
             # No config file - use CLI params or defaults
             self.model = model or "llama3.2:3b"
@@ -3841,25 +3868,66 @@ except Exception as e:
         """Show or change model."""
         if args:
             new_model = args[0]
-            # Check if model changed
-            if self.model != new_model:
+            
+            # ALWAYS calculate correct backend, even if model string is same
+            # This fixes cases where backend got desynced from model
+            new_backend = None
+            
+            # Check known models
+            if self.config and self.config.models and new_model in self.config.models:
+                model_info = self.config.models[new_model]
+                # Handle both dict access (raw config) and attribute access (pydantic)
+                source = None
+                if hasattr(model_info, "source"):
+                    source = model_info.source
+                    # Handle Enum
+                    if hasattr(source, "value"):
+                        source = source.value
+                elif isinstance(model_info, dict):
+                    source = model_info.get("source")
+                
+                if source:
+                    new_backend = map_source_to_backend(str(source))
+            
+            # Fallback heuristics
+            if not new_backend:
+                if "mlx-community" in new_model or new_model.startswith("mlx:"):
+                    new_backend = "mlx"
+                elif new_model.startswith("ollama:") or "ollama" in new_model:
+                    new_backend = "ollama"
+                elif ".gguf" in new_model.lower():
+                    new_backend = "llama_cpp"
+                elif ".safetensors" in new_model.lower():
+                    new_backend = "transformers"
+            
+            # Default to existing if still unknown, or llama_cpp
+            if not new_backend:
+                 new_backend = self.backend or "llama_cpp"
+
+            # Check if ANYTHING changed (model or backend)
+            if self.model != new_model or self.backend != new_backend:
                 self.model = new_model
+                self.backend = new_backend
+                
                 # Update config if exists
                 if self.config:
                     self.config.model = new_model
+                    self.config.backend = new_backend
                     try:
                         save_parishad_config(self.config)
-                        self.log_message(f"[green]✓ Model changed to: {self.model}[/green]")
-                        # Trigger re-initialization if needed
-                        # self._initialize_chat() 
+                        self.log_message(f"[green]✓ Model set to: {self.model}[/green]")
+                        self.log_message(f"[dim]  Backend set to: {self.backend}[/dim]")
                     except Exception as e:
                         self.log_message(f"[red]Failed to save config: {e}[/red]")
                 else:
-                    self.log_message(f"[dim]Model changed to: {self.model} (runtime only)[/dim]")
+                    self.log_message(f"[dim]Model set to: {self.model} (runtime only)[/dim]")
+                    self.log_message(f"[dim]  Backend set to: {self.backend}[/dim]")
             else:
                 self.log_message(f"[dim]Model is already: {self.model}[/dim]")
+                self.log_message(f"[dim]Backend is correct: {self.backend}[/dim]")
         else:
             self.log_message(f"[dim]Current model: {self.model}[/dim]")
+            self.log_message(f"[dim]Current backend: {self.backend}[/dim]")
     
     def _cmd_scan(self) -> None:
         """Scan for models on disk."""
