@@ -5,6 +5,17 @@ All notable changes to the **Parishad** project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0] - 2026-02-14
+
+### Fixed
+- **Backend Detection**: Fixed critical issue where setup was saving model format ("gguf") as backend instead of proper backend name ("llama_cpp"), causing `/model` command to show backend as "none".
+- **Auto-Detection**: Added automatic backend detection and correction on app startup - if backend is None or invalid, system now auto-detects available backends (llama_cpp, ollama) based on what's actually installed.
+- **Config Normalization**: Config loader now automatically fixes old configurations that stored format instead of backend name, ensuring backward compatibility.
+- **Smart Defaults**: Skip button in setup now intelligently detects available backends instead of blindly defaulting to ollama.
+
+### Improved
+- **OS-Based Detection**: Enhanced backend selection to leverage existing OS detection infrastructure (Windows→CUDA/CPU wheels, Mac→Metal, Linux→PyPI) for automatic setup.
+
 ## [0.1.9] - 2026-02-13
 
 ### Fixed
