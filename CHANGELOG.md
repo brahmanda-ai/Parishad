@@ -5,14 +5,14 @@ All notable changes to the **Parishad** project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.8] - 2026-02-14
+## [1.0.1] - 2026-02-14
 
 ### Fixed
 - **MLX Backend 0-Token Generation**: Fixed a critical issue where MLX models would generate 0 tokens and fail silently.
     - **Environment**: Identified and documented missing `mlx-lm` dependency in system Python environments.
     - **Code Compatibility**: Updated `MlxBackend` to use `make_sampler` for compatibility with `mlx_lm>=0.20.0`.
 - **Dependency Handling**: Added checks to ensure proper error messaging when backend dependencies are missing in the active environment.
-- **Version Consistency**: Unified project version to `0.1.8` across `pyproject.toml`, source code, and configuration files.
+- **Version Consistency**: Unified project version to `1.0.1` across `pyproject.toml`, source code, and configuration files.
 
 ## [1.0.0] - 2026-02-14
 
