@@ -101,9 +101,14 @@ class ParishadConfig:
         # Store full config for preservation
         extra = full_config if full_config else {}
         
+        # Normalize backend value (fix old configs that stored format instead of backend)
+        backend = session_data.get("backend")
+        if backend:
+            backend = map_source_to_backend(backend)  # Convert format to backend if needed
+        
         return cls(
             sabha=session_data.get("sabha"),
-            backend=session_data.get("backend"),
+            backend=backend,
             model=session_data.get("model"),
             cwd=session_data.get("cwd", ""),
             setup_complete=session_data.get("setup_complete", False),
@@ -1558,7 +1563,14 @@ class SetupScreen(Screen):
                 if sabha.id == initial_config.sabha:
                     self.selected_sabha = sabha
                     break
-            self.current_source = initial_config.backend
+            # Convert backend to source format (reverse mapping)
+            backend_to_source = {
+                "llama_cpp": "gguf",
+                "mlx": "mlx", 
+                "transformers": "safetensors",
+                "ollama": "gguf",  # Default ollama to gguf for UI
+            }
+            self.current_source = backend_to_source.get(initial_config.backend, "gguf")
     
     def compose(self) -> ComposeResult:
         # Everything in one scrollable container
@@ -1782,11 +1794,15 @@ class SetupScreen(Screen):
             # Re-setup scenario - abort and keep existing config
             self.dismiss(self.initial_config)
         else:
-            # First-run scenario - create default config
+            # First-run scenario - create default config with auto-detected backend
+            # Detect what's available on the system
+            available_backends = detect_available_backends()
+            default_backend = "llama_cpp" if available_backends.get("llama_cpp", (False, ""))[0] else "ollama"
+            
             default_config = ParishadConfig(
                 sabha="laghu",
-                backend="ollama",  # Default to Ollama (matches CLI)
-                model="qwen2.5:1.5b",  # Small Ollama model
+                backend=default_backend,  # Auto-detect based on what's installed
+                model="qwen2.5:1.5b",  # Small default model
                 cwd=str(Path.cwd())
             )
             save_parishad_config(default_config)
@@ -1807,7 +1823,7 @@ class SetupScreen(Screen):
             
             new_config = ParishadConfig(
                 sabha=self.selected_sabha.id,
-                backend=self.current_source,  # Format: gguf/mlx/safetensors
+                backend=map_source_to_backend(self.current_source),  # Map format to backend
                 model=primary_model,  # Model ID for ModelManager
                 cwd=str(Path.cwd())
             )
@@ -2279,6 +2295,20 @@ class ParishadApp(App):
             self.model = model or self.config.model
             self.backend = backend or self.config.backend
             self.sabha = sabha or self.config.sabha
+            
+            # Auto-detect backend if None or invalid
+            if not self.backend or self.backend == "none":
+                available_backends = detect_available_backends()
+                if available_backends.get("llama_cpp", (False, ""))[0]:
+                    self.backend = "llama_cpp"
+                elif available_backends.get("ollama", (False, ""))[0]:
+                    self.backend = "ollama"
+                else:
+                    self.backend = "llama_cpp"  # Default fallback
+                # Update config with detected backend
+                if self.config:
+                    self.config.backend = self.backend
+                    save_parishad_config(self.config)
         else:
             # No config file - use CLI params or defaults
             self.model = model or "llama3.2:3b"
