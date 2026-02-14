@@ -1,4 +1,4 @@
-"""
+﻿"""
 Parishad CLI - Unified TUI with setup wizard and chat interface.
 
 Features:
@@ -84,7 +84,7 @@ def load_parishad_config() -> Optional[ParishadConfig]:
 class ParishadConfig:
     """Central configuration for Parishad TUI."""
     sabha: Optional[str] = None          # "laghu" | "madhyam" | "maha"
-    backend: Optional[str] = None        # "llama_cpp" | "mlx" | "transformers" | "ollama"
+    backend: Optional[str] = None        # "llama_cpp" | "mlx" | "ollama"
     model: Optional[str] = None          # model id/name
     cwd: str = ""       # working directory (optional)
     setup_complete: bool = False
@@ -650,7 +650,7 @@ class ModelInfo:
     shortcut: str
     size_gb: float
     description: str
-    source: str  # gguf, mlx, safetensors (model format)
+    source: str  # gguf, mlx (model format)
     quantization: str = "Q4_K_M"
     distributor: str = ""
     params: str = ""
@@ -684,7 +684,7 @@ def load_model_catalog() -> dict:
         except Exception as e:
             print(f"Error loading models.json: {e}")
     
-    # Fallback to minimal catalog
+    # Fallback to minimal catalog (GGUF and MLX only)
     return {
         "gguf": [
             ModelInfo("Llama 3.2 3B", "bartowski/Llama-3.2-3B-Instruct-GGUF", 2.0, "Efficient and fast", "gguf", "Q4_K_M", "Meta", "3B"),
@@ -692,9 +692,6 @@ def load_model_catalog() -> dict:
         ],
         "mlx": [
             ModelInfo("Llama 3.2 3B MLX", "mlx-community/Llama-3.2-3B-Instruct-4bit", 2.0, "Mac optimized", "mlx", "4-bit", "Meta", "3B"),
-        ],
-        "safetensors": [
-            ModelInfo("Llama 3.2 3B", "meta-llama/Llama-3.2-3B-Instruct", 6.0, "Full precision", "safetensors", "FP16", "Meta", "3B"),
         ],
     }
 
@@ -712,7 +709,7 @@ def map_source_to_backend(source: str) -> str:
     Map model format to runtime backend.
     
     Args:
-        source: Model format ("gguf" / "mlx" / "safetensors" / "ollama")
+        source: Model format ("gguf" / "mlx" / "ollama")
         
     Returns:
         Backend name for ModelConfig
@@ -720,7 +717,6 @@ def map_source_to_backend(source: str) -> str:
     mapping = {
         "gguf": "llama_cpp",         # GGUF → llama.cpp
         "mlx": "mlx",                # MLX → mlx backend (Apple Silicon)
-        "safetensors": "transformers", # Safetensors → transformers
         "ollama": "ollama",          # Ollama → ollama API (legacy)
         "native": "native",          # Native → MLX distributed
     }
@@ -735,8 +731,7 @@ def get_available_models_with_status() -> Dict[str, List[Dict]]:
     Returns:
         {
             "gguf": [{"id": "qwen2.5:1.5b", "name": "...", "downloaded": True, ...}, ...],
-            "mlx": [...],
-            "safetensors": [...]
+            "mlx": [...]
         }
     """
     from parishad.models.downloader import ModelManager
@@ -790,7 +785,7 @@ def ensure_model_available(
     
     Args:
         model_id: Model identifier (e.g., "qwen2.5:1.5b")
-        source: Format to download ("gguf" / "mlx" / "safetensors")
+        source: Format to download ("gguf" / "mlx")
         progress_callback: Optional callback for progress updates
         cancel_event: Optional threading.Event to signal cancellation
         
@@ -863,14 +858,6 @@ def detect_available_backends() -> Dict[str, Tuple[bool, str]]:
     except ImportError:
         results["mlx"] = (False, "mlx-lm not installed (Mac only)")
     
-    # Transformers (for Safetensors)
-    try:
-        import transformers
-        import torch
-        results["transformers"] = (True, "Transformers installed")
-    except ImportError:
-        results["transformers"] = (False, "transformers/torch not installed")
-    
     # Ollama (legacy support)
     try:
         if shutil.which("ollama"):
@@ -916,7 +903,7 @@ def is_model_available(model_id: str, backend: str) -> bool:
     
     Args:
         model_id: Model identifier (e.g., "llama3.2:3b", "meta-llama/Llama-3.2-3B")
-        backend: Backend name ("llama_cpp", "mlx", "transformers", "ollama", "native", etc.)
+        backend: Backend name ("llama_cpp", "mlx", "ollama", "native", etc.)
     
     Returns:
         True if model is available, False otherwise
@@ -958,31 +945,6 @@ def is_model_available(model_id: str, backend: str) -> bool:
             manager = ModelManager()
             model_path = manager.get_model_path(model_id)
             return model_path is not None and model_path.exists()
-        except Exception:
-            return False
-    
-    elif backend in ("transformers", "safetensors"):
-        # Check if Safetensors/Transformers model exists via ModelManager
-        try:
-            from parishad.models.downloader import ModelManager
-            manager = ModelManager()
-            model_path = manager.get_model_path(model_id)
-            if model_path and model_path.exists():
-                return True
-            
-            # Also check HF cache
-            hf_home = os.environ.get("HF_HOME", str(Path.home() / ".cache" / "huggingface"))
-            cache_dir = Path(hf_home) / "hub"
-            
-            if not cache_dir.exists():
-                return False
-            
-            # Convert model_id to cache directory format
-            # e.g., "meta-llama/Llama-3.2-3B" -> "models--meta-llama--Llama-3.2-3B"
-            cache_model_dir = "models--" + model_id.replace("/", "--")
-            model_path = cache_dir / cache_model_dir
-            
-            return model_path.exists() and model_path.is_dir()
         except Exception:
             return False
     
@@ -1049,36 +1011,6 @@ def get_available_models_for_backend(backend: str) -> List[ModelInfo]:
                                 tags="ollama,local",
                                 available=True
                             ))
-        except Exception:
-            pass
-    
-    elif backend in ("huggingface", "transformers"):
-        try:
-            hf_home = os.environ.get("HF_HOME", str(Path.home() / ".cache" / "huggingface"))
-            cache_dir = Path(hf_home) / "hub"
-            
-            if cache_dir.exists():
-                for model_dir in cache_dir.iterdir():
-                    if model_dir.is_dir() and model_dir.name.startswith("models--"):
-                        # Extract model ID from directory name
-                        model_id = model_dir.name.replace("models--", "").replace("--", "/")
-                        
-                        # Estimate size
-                        size_gb = 0.0
-                        try:
-                            total_size = sum(f.stat().st_size for f in model_dir.rglob("*") if f.is_file())
-                            size_gb = total_size / (1024 ** 3)
-                        except:
-                            pass
-                        
-                        models.append(ModelInfo(
-                            name=model_id.split("/")[-1],
-                            shortcut=model_id,
-                            size_gb=size_gb,
-                            description="Downloaded from HuggingFace",
-                            tags="huggingface,local",
-                            available=True
-                        ))
         except Exception:
             pass
     
@@ -1282,23 +1214,6 @@ Screen {
 
 #tab-mlx.active {
     background: #ff6b35;
-    color: #ffffff;
-}
-
-/* Safetensors Tab - Green */
-#tab-safetensors {
-    width: 1fr;
-    border: none;
-    background: #1a2e1e;
-    color: #00cc88;
-}
-
-#tab-safetensors:hover {
-    background: #254530;
-}
-
-#tab-safetensors.active {
-    background: #00cc88;
     color: #ffffff;
 }
 
@@ -1567,7 +1482,6 @@ class SetupScreen(Screen):
             backend_to_source = {
                 "llama_cpp": "gguf",
                 "mlx": "mlx", 
-                "transformers": "safetensors",
                 "ollama": "gguf",  # Default ollama to gguf for UI
             }
             self.current_source = backend_to_source.get(initial_config.backend, "gguf")
@@ -1607,7 +1521,6 @@ class SetupScreen(Screen):
                     yield Horizontal(
                         Button("🦙 GGUF", id="tab-gguf", classes="model-tab active"),
                         Button(Text.from_markup("[white][/] MLX"), id="tab-mlx", classes="model-tab"),
-                        Button("🤗 Safetensors", id="tab-safetensors", classes="model-tab"),
                         classes="model-tabs"
                     )
                     
@@ -1735,10 +1648,6 @@ class SetupScreen(Screen):
     def show_mlx(self) -> None:
         self._switch_tab("mlx")
     
-    @on(Button.Pressed, "#tab-safetensors")
-    def show_safetensors(self) -> None:
-        self._switch_tab("safetensors")
-    
     @on(Input.Changed, "#model-search")
     def on_search_changed(self, event: Input.Changed) -> None:
         """Filter models based on search query."""
@@ -1818,7 +1727,7 @@ class SetupScreen(Screen):
 
         if self.selected_sabha and len(self.selected_models) >= len(self.selected_sabha.model_slots):
             # Create ParishadConfig from selections
-            # Store format (gguf/mlx/safetensors) for backend mapping
+            # Store format (gguf/mlx) for backend mapping
             primary_model = list(self.selected_models.values())[0].shortcut if self.selected_models else "qwen2.5:1.5b"
             
             new_config = ParishadConfig(
@@ -2713,12 +2622,10 @@ class ParishadApp(App):
         # Map TUI backend to runner backend
         backend_map = {
             "ollama": "ollama",
-            "huggingface": "transformers",
             "lmstudio": "openai",
             "openai": "openai",
             "local": "llama_cpp",
             "llama_cpp": "llama_cpp",
-            "transformers": "transformers",
             "mlx": "mlx",
         }
         
@@ -2736,12 +2643,7 @@ class ParishadApp(App):
             )
             
             # Show installation instructions based on backend
-            if backend_name == "transformers":
-                self.log_message(
-                    "  [cyan]pip install transformers torch[/cyan]\n"
-                    "  (For GPU: pip install transformers torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118)\n"
-                )
-            elif backend_name == "ollama":
+            if backend_name == "ollama":
                 self.log_message(
                     "  1. Install Ollama: [cyan]https://ollama.ai[/cyan]\n"
                     "  2. Pull model: [cyan]ollama pull " + self.config.model + "[/cyan]\n"
@@ -3873,32 +3775,14 @@ except Exception as e:
             # This fixes cases where backend got desynced from model
             new_backend = None
             
-            # Check known models
-            if self.config and self.config.models and new_model in self.config.models:
-                model_info = self.config.models[new_model]
-                # Handle both dict access (raw config) and attribute access (pydantic)
-                source = None
-                if hasattr(model_info, "source"):
-                    source = model_info.source
-                    # Handle Enum
-                    if hasattr(source, "value"):
-                        source = source.value
-                elif isinstance(model_info, dict):
-                    source = model_info.get("source")
-                
-                if source:
-                    new_backend = map_source_to_backend(str(source))
-            
-            # Fallback heuristics
-            if not new_backend:
+            # Detect backend from model string using heuristics
+            if True:  # Always use heuristics
                 if "mlx-community" in new_model or new_model.startswith("mlx:"):
                     new_backend = "mlx"
                 elif new_model.startswith("ollama:") or "ollama" in new_model:
                     new_backend = "ollama"
                 elif ".gguf" in new_model.lower():
                     new_backend = "llama_cpp"
-                elif ".safetensors" in new_model.lower():
-                    new_backend = "transformers"
             
             # Default to existing if still unknown, or llama_cpp
             if not new_backend:

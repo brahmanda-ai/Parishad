@@ -95,12 +95,24 @@ class MlxBackend(BaseBackend):
         try:
             tokens_in = len(self._tokenizer.encode(prompt))
             
+            logger.debug(f"MLX Generate Input: prompt_len={len(prompt)}, max_tokens={max_tokens}, temp={temperature}, top_p={top_p}")
+            logger.debug(f"MLX Prompt: {prompt!r}")
+
+            # Create sampler for generation
+            # mlx-lm 0.20+ requires explicit sampler
+            from mlx_lm.sample_utils import make_sampler
+            sampler = make_sampler(temp=temperature, top_p=top_p)
+
             text = mlx_lm.generate(
                 model=self._model,
                 tokenizer=self._tokenizer,
                 prompt=prompt,
                 max_tokens=max_tokens,
+                sampler=sampler,
+                verbose=False,
             )
+            
+            logger.debug(f"MLX Raw Output: {text!r}")
             
             finish_reason = "length"
             if stop:
