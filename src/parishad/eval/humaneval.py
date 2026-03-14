@@ -15,6 +15,8 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
+LOCAL_FILE_ENCODING = "utf-8-sig"
+
 
 def load_humaneval(
     n_problems: int | None = None,
@@ -168,13 +170,13 @@ def _load_humaneval_from_local_file(dataset_path: str) -> list[dict[str, str]]:
     rows: list[dict[str, str]] = []
 
     if suffix == ".jsonl":
-        with path.open("r", encoding="utf-8") as fh:
+        with path.open("r", encoding=LOCAL_FILE_ENCODING) as fh:
             for line in fh:
                 line = line.strip()
                 if line:
                     rows.append(json.loads(line))
     elif suffix == ".json":
-        payload = json.loads(path.read_text(encoding="utf-8"))
+        payload = json.loads(path.read_text(encoding=LOCAL_FILE_ENCODING))
         if isinstance(payload, list):
             rows = payload
         elif isinstance(payload, dict) and "data" in payload and isinstance(payload["data"], list):
@@ -182,7 +184,7 @@ def _load_humaneval_from_local_file(dataset_path: str) -> list[dict[str, str]]:
         else:
             raise ValueError("JSON dataset must be a list or a dict with a 'data' list")
     elif suffix == ".csv":
-        with path.open("r", encoding="utf-8", newline="") as fh:
+        with path.open("r", encoding=LOCAL_FILE_ENCODING, newline="") as fh:
             rows = list(csv.DictReader(fh))
     else:
         raise ValueError("Unsupported dataset file type. Use .jsonl, .json, or .csv")

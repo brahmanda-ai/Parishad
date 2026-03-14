@@ -1366,7 +1366,7 @@ class Parishad:
             if config_json_path.exists():
                 try:
                     import json
-                    with open(config_json_path) as f:
+                    with open(config_json_path, encoding="utf-8-sig") as f:
                         user_config_data = json.load(f)
                     
                     session = user_config_data.get("session", {})

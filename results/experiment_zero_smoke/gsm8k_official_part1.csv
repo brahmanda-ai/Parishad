@@ -1,0 +1,13 @@
+problem_id,setup,question,ground_truth,prediction,correct
+gsm8k-42,direct,"A family of 12 monkeys collected 10 piles of bananas. 6 piles had 9 hands, with each hand having 14 bananas, while the remaining piles had 12 hands, with each hand having 9 bananas. How many bananas would each monkey get if they divide the bananas equally amongst themselves?","The first 6 bunches had 6 x 9 x 14 = <<6*9*14=756>>756 bananas.
+There were 10 - 6 = <<10-6=4>>4 remaining bunches.
+The 4 remaining bunches had 4 x 12 x 9 = <<4*12*9=432>>432 bananas.
+All together, there were 756 + 432 = <<756+432=1188>>1188 bananas
+Each monkey would get 1188/12 = <<1188/12=99>>99 bananas.
+#### 99",,False
+gsm8k-42,pipeline,"A family of 12 monkeys collected 10 piles of bananas. 6 piles had 9 hands, with each hand having 14 bananas, while the remaining piles had 12 hands, with each hand having 9 bananas. How many bananas would each monkey get if they divide the bananas equally amongst themselves?","The first 6 bunches had 6 x 9 x 14 = <<6*9*14=756>>756 bananas.
+There were 10 - 6 = <<10-6=4>>4 remaining bunches.
+The 4 remaining bunches had 4 x 12 x 9 = <<4*12*9=432>>432 bananas.
+All together, there were 756 + 432 = <<756+432=1188>>1188 bananas
+Each monkey would get 1188/12 = <<1188/12=99>>99 bananas.
+#### 99",,False

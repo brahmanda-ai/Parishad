@@ -1,0 +1,63 @@
+{
+  "experiment_name": "experiment_zero_gsm8k_part_1",
+  "timestamp": "2026-03-14T08:07:11.467074+00:00",
+  "model_name": "D:\\Parishad\\models\\Qwen2.5-3B-Instruct-Q4_K_M.gguf",
+  "seed": 42,
+  "hardware": "Windows-10-10.0.26200-SP0",
+  "results": {
+    "gsm8k": {
+      "direct": {
+        "setup": "direct",
+        "benchmark": "gsm8k",
+        "accuracy": 0.0,
+        "total_problems": 1,
+        "correct_count": 0,
+        "avg_tokens": 0.0,
+        "avg_latency_ms": 0.0,
+        "total_tokens": 0,
+        "total_estimated_cost": 0.0,
+        "problems": [
+          {
+            "problem_id": "gsm8k-42",
+            "setup": "direct",
+            "benchmark": "gsm8k",
+            "correct": false,
+            "predicted_answer": "",
+            "ground_truth": "The first 6 bunches had 6 x 9 x 14 = <<6*9*14=756>>756 bananas.\nThere were 10 - 6 = <<10-6=4>>4 remaining bunches.\nThe 4 remaining bunches had 4 x 12 x 9 = <<4*12*9=432>>432 bananas.\nAll together, there were 756 + 432 = <<756+432=1188>>1188 bananas\nEach monkey would get 1188/12 = <<1188/12=99>>99 bananas.\n#### 99",
+            "tokens_used": 0,
+            "latency_ms": 0,
+            "estimated_cost": 0.0,
+            "error": "ModelBackendError: Backend error in slot 'mid': Failed to load model: 'str' object cannot be interpreted as an integer"
+          }
+        ]
+      },
+      "pipeline": {
+        "setup": "pipeline",
+        "benchmark": "gsm8k",
+        "accuracy": 0.0,
+        "total_problems": 1,
+        "correct_count": 0,
+        "avg_tokens": 0.0,
+        "avg_latency_ms": 490.0,
+        "total_tokens": 0,
+        "total_estimated_cost": 0.0,
+        "problems": [
+          {
+            "problem_id": "gsm8k-42",
+            "setup": "pipeline",
+            "benchmark": "gsm8k",
+            "correct": false,
+            "predicted_answer": "",
+            "ground_truth": "The first 6 bunches had 6 x 9 x 14 = <<6*9*14=756>>756 bananas.\nThere were 10 - 6 = <<10-6=4>>4 remaining bunches.\nThe 4 remaining bunches had 4 x 12 x 9 = <<4*12*9=432>>432 bananas.\nAll together, there were 756 + 432 = <<756+432=1188>>1188 bananas\nEach monkey would get 1188/12 = <<1188/12=99>>99 bananas.\n#### 99",
+            "tokens_used": 0,
+            "latency_ms": 490,
+            "estimated_cost": 0.0,
+            "error": null
+          }
+        ]
+      }
+    }
+  },
+  "decision": "red",
+  "decision_reason": "Single-benchmark pipeline-only run. Gate decision requires both benchmarks and deltas."
+}

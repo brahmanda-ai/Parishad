@@ -24,6 +24,47 @@ _llama_cpp = None
 _suppress_output = None
 
 
+def _coerce_int_option(value: object, default: int) -> int:
+    """Convert backend numeric options to integers with a safe fallback."""
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return int(value)
+
+    text = str(value).strip()
+    if not text:
+        return default
+
+    try:
+        return int(text)
+    except ValueError:
+        logger.warning("Invalid integer option value %r, using default %s", value, default)
+        return default
+
+
+def _coerce_bool_option(value: object, default: bool) -> bool:
+    """Convert backend boolean options from string or numeric inputs."""
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+
+    text = str(value).strip().lower()
+    if text in {"1", "true", "yes", "on"}:
+        return True
+    if text in {"0", "false", "no", "off"}:
+        return False
+
+    logger.warning("Invalid boolean option value %r, using default %s", value, default)
+    return default
+
+
 def _get_llama_cpp():
     """Lazy import of llama-cpp-python."""
     global _llama_cpp, _suppress_output
@@ -170,10 +211,10 @@ class LlamaCppBackend(BaseBackend):
             logger.warning(f"⚠️  VRAM check failed: {e}")
         
         extra = config.extra or {}
-        n_gpu_layers = extra.get("n_gpu_layers", -1)
-        n_ctx = extra.get("n_ctx", config.context_length)
-        n_batch = extra.get("n_batch", 512)
-        verbose = extra.get("verbose", False)
+        n_gpu_layers = _coerce_int_option(extra.get("n_gpu_layers", -1), -1)
+        n_ctx = _coerce_int_option(extra.get("n_ctx", config.context_length), config.context_length)
+        n_batch = _coerce_int_option(extra.get("n_batch", 512), 512)
+        verbose = _coerce_bool_option(extra.get("verbose", False), False)
         chat_format = extra.get("chat_format", None)
         
         logger.info(f"")

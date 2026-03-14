@@ -1,0 +1,40 @@
+{
+  "benchmark": "gsm8k",
+  "part": 1,
+  "seed": 42,
+  "total_target": 1,
+  "chunk_size": 1,
+  "selected_indices": [
+    42
+  ],
+  "completed_problem_ids": [
+    "gsm8k-42:direct",
+    "gsm8k-42:pipeline"
+  ],
+  "problems": [
+    {
+      "problem_id": "gsm8k-42",
+      "setup": "direct",
+      "benchmark": "gsm8k",
+      "correct": false,
+      "predicted_answer": "",
+      "ground_truth": "The first 6 bunches had 6 x 9 x 14 = <<6*9*14=756>>756 bananas.\nThere were 10 - 6 = <<10-6=4>>4 remaining bunches.\nThe 4 remaining bunches had 4 x 12 x 9 = <<4*12*9=432>>432 bananas.\nAll together, there were 756 + 432 = <<756+432=1188>>1188 bananas\nEach monkey would get 1188/12 = <<1188/12=99>>99 bananas.\n#### 99",
+      "tokens_used": 0,
+      "latency_ms": 0,
+      "estimated_cost": 0.0,
+      "error": "ModelBackendError: Backend error in slot 'mid': Failed to load model: 'str' object cannot be interpreted as an integer"
+    },
+    {
+      "problem_id": "gsm8k-42",
+      "setup": "pipeline",
+      "benchmark": "gsm8k",
+      "correct": false,
+      "predicted_answer": "",
+      "ground_truth": "The first 6 bunches had 6 x 9 x 14 = <<6*9*14=756>>756 bananas.\nThere were 10 - 6 = <<10-6=4>>4 remaining bunches.\nThe 4 remaining bunches had 4 x 12 x 9 = <<4*12*9=432>>432 bananas.\nAll together, there were 756 + 432 = <<756+432=1188>>1188 bananas\nEach monkey would get 1188/12 = <<1188/12=99>>99 bananas.\n#### 99",
+      "tokens_used": 0,
+      "latency_ms": 490,
+      "estimated_cost": 0.0,
+      "error": null
+    }
+  ]
+}
