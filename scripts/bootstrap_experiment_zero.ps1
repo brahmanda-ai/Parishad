@@ -125,9 +125,11 @@
             $cfg.models = [pscustomobject]@{}
         }
 
+        $modelKey = "local:qwen2.5-3b"
+
         Set-OrAddProperty -Object $cfg -Name "setup_complete" -Value $true
         Set-OrAddProperty -Object $cfg.session -Name "backend" -Value "llama_cpp"
-        Set-OrAddProperty -Object $cfg.session -Name "model" -Value $TargetModelPath
+        Set-OrAddProperty -Object $cfg.session -Name "model" -Value $modelKey
 
         $sessionPropNames = @($cfg.session.PSObject.Properties | ForEach-Object { $_.Name })
         if ($sessionPropNames -notcontains "sabha" -or -not $cfg.session.sabha) {
@@ -135,12 +137,11 @@
         }
 
         Set-OrAddProperty -Object $cfg.session -Name "model_map" -Value ([pscustomobject]@{
-            small = $TargetModelPath
-            mid   = $TargetModelPath
-            big   = $TargetModelPath
+            small = $modelKey
+            mid   = $modelKey
+            big   = $modelKey
         })
 
-        $modelKey = "local:qwen2.5-3b"
         $modelEntry = [pscustomobject]@{
             source = "local"
             format = "gguf"
@@ -224,6 +225,78 @@ print(path)
 
         Write-Host "Downloaded model: $modelPath" -ForegroundColor Green
         return $modelPath
+    }
+
+    function Assert-NonGatedHfModel {
+        param(
+            [string]$Repo,
+            [string]$PythonCmd
+        )
+
+        $checkScript = @"
+import json
+from huggingface_hub import HfApi
+
+repo = r"$Repo"
+info = HfApi().model_info(repo_id=repo)
+gated = info.gated
+
+if isinstance(gated, str):
+    gated = gated.strip().lower() not in {"", "false", "none", "no"}
+
+print(json.dumps({"repo": repo, "gated": bool(gated)}))
+"@
+
+        $tempScript = Join-Path $env:TEMP "parishad_hf_gated_check.py"
+        Set-Content -Path $tempScript -Encoding UTF8 -Value $checkScript
+
+        $oldNativePref = $null
+        if (Get-Variable -Name PSNativeCommandUseErrorActionPreference -Scope Global -ErrorAction SilentlyContinue) {
+            $oldNativePref = $Global:PSNativeCommandUseErrorActionPreference
+            $Global:PSNativeCommandUseErrorActionPreference = $false
+        }
+
+        $output = & $PythonCmd $tempScript 2>&1
+        $exitCode = $LASTEXITCODE
+
+        if ($null -ne $oldNativePref) {
+            $Global:PSNativeCommandUseErrorActionPreference = $oldNativePref
+        }
+
+        if ($exitCode -ne 0) {
+            Write-Host "Warning: Could not verify gating status for '$Repo'. Continuing with download attempt." -ForegroundColor Yellow
+            return
+        }
+
+        $jsonLine = ""
+        $outputLines = @($output)
+        for ($i = $outputLines.Count - 1; $i -ge 0; $i--) {
+            $candidate = $outputLines[$i].ToString().Trim()
+            if ($candidate.StartsWith("{")) {
+                $jsonLine = $candidate
+                break
+            }
+        }
+
+        if ([string]::IsNullOrWhiteSpace($jsonLine)) {
+            Write-Host "Warning: Could not parse gating metadata for '$Repo'. Continuing with download attempt." -ForegroundColor Yellow
+            return
+        }
+
+        $meta = $null
+        try {
+            $meta = $jsonLine | ConvertFrom-Json
+        }
+        catch {
+            Write-Host "Warning: Could not parse gating status for '$Repo'. Continuing with download attempt." -ForegroundColor Yellow
+            return
+        }
+
+        if ($meta.gated -eq $true) {
+            throw "Selected model repository '$Repo' is gated. Choose a non-gated model for benchmarks. Suggested non-gated GGUF repos: bartowski/Qwen2.5-3B-Instruct-GGUF, bartowski/Qwen2.5-1.5B-Instruct-GGUF, bartowski/SmolLM2-1.7B-Instruct-GGUF."
+        }
+
+        Write-Host "Verified non-gated Hugging Face model repo: $Repo" -ForegroundColor Green
     }
 
     function Initialize-BenchmarkDatasets {
@@ -336,6 +409,7 @@ print(path)
     $resolvedModelPath = Join-Path $resolvedModelDir $HfFile
 
     if (-not $SkipModelPull) {
+        Assert-NonGatedHfModel -Repo $HfRepo -PythonCmd $PythonExe
         $resolvedModelPath = Get-HfGgufModel -Repo $HfRepo -File $HfFile -OutputDir $ModelOutputDir -PythonCmd $PythonExe
     }
     elseif (-not (Test-Path $resolvedModelPath)) {

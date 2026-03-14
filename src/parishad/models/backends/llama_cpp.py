@@ -65,6 +65,23 @@ def _coerce_bool_option(value: object, default: bool) -> bool:
     return default
 
 
+def _normalize_chat_format(value: object) -> Optional[str]:
+    """Normalize chat format values so "auto" maps to backend default behavior."""
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    if text.lower() in {"auto", "none", "null"}:
+        return None
+    return text
+
+
+def _is_access_violation_error(exc: Exception) -> bool:
+    """Detect common low-level access violation failures from llama.cpp on Windows."""
+    return "access violation" in str(exc).lower()
+
+
 def _get_llama_cpp():
     """Lazy import of llama-cpp-python."""
     global _llama_cpp, _suppress_output
@@ -215,7 +232,17 @@ class LlamaCppBackend(BaseBackend):
         n_ctx = _coerce_int_option(extra.get("n_ctx", config.context_length), config.context_length)
         n_batch = _coerce_int_option(extra.get("n_batch", 512), 512)
         verbose = _coerce_bool_option(extra.get("verbose", False), False)
-        chat_format = extra.get("chat_format", None)
+        chat_format = _normalize_chat_format(extra.get("chat_format", None))
+
+        if n_ctx < 256:
+            logger.warning("n_ctx=%s is too small, forcing minimum 256", n_ctx)
+            n_ctx = 256
+        if n_batch < 1:
+            logger.warning("n_batch=%s is invalid, forcing minimum 1", n_batch)
+            n_batch = 1
+        if n_batch > n_ctx:
+            logger.warning("n_batch=%s exceeds n_ctx=%s, clamping to n_ctx", n_batch, n_ctx)
+            n_batch = n_ctx
         
         logger.info(f"")
         logger.info(f"📋 Loading configuration:")
@@ -230,26 +257,68 @@ class LlamaCppBackend(BaseBackend):
             logger.info(f"⏳ Loading model into memory... (this may take 30-90 seconds)")
             load_start = time.perf_counter()
             
-            suppress_ctx = _suppress_output(disable=False) if _suppress_output else None
-            if suppress_ctx:
-                with suppress_ctx:
-                    self._llm = llama_cpp.Llama(
-                        model_path=str(model_path),
-                        n_gpu_layers=n_gpu_layers,
-                        n_ctx=n_ctx,
-                        n_batch=n_batch,
-                        verbose=verbose,
-                        chat_format=chat_format,
-                    )
-            else:
-                self._llm = llama_cpp.Llama(
-                    model_path=str(model_path),
-                    n_gpu_layers=n_gpu_layers,
-                    n_ctx=n_ctx,
-                    n_batch=n_batch,
-                    verbose=verbose,
-                    chat_format=chat_format,
+            base_kwargs = {
+                "model_path": str(model_path),
+                "n_gpu_layers": n_gpu_layers,
+                "n_ctx": n_ctx,
+                "n_batch": n_batch,
+                "verbose": verbose,
+                "chat_format": chat_format,
+            }
+
+            attempts: list[tuple[str, dict]] = [("primary", base_kwargs)]
+
+            # Windows llama.cpp can occasionally crash with access violations during GPU initialization.
+            # Retry once with conservative options to avoid aborting the full benchmark run.
+            safe_ctx = min(n_ctx, 4096)
+            safe_batch = min(n_batch, safe_ctx, 512)
+            safe_kwargs = {
+                "model_path": str(model_path),
+                "n_gpu_layers": 0,
+                "n_ctx": safe_ctx,
+                "n_batch": safe_batch,
+                "verbose": False,
+                "chat_format": None,
+                "use_mmap": False,
+                "use_mlock": False,
+            }
+            if base_kwargs != safe_kwargs:
+                attempts.append(("safe-fallback", safe_kwargs))
+
+            last_error: Exception | None = None
+            for idx, (attempt_name, attempt_kwargs) in enumerate(attempts, start=1):
+                logger.info(
+                    "Loading attempt %s/%s (%s): n_gpu_layers=%s, n_ctx=%s, n_batch=%s, chat_format=%s",
+                    idx,
+                    len(attempts),
+                    attempt_name,
+                    attempt_kwargs.get("n_gpu_layers"),
+                    attempt_kwargs.get("n_ctx"),
+                    attempt_kwargs.get("n_batch"),
+                    attempt_kwargs.get("chat_format") or "auto",
                 )
+                try:
+                    suppress_ctx = _suppress_output(disable=False) if _suppress_output else None
+                    if suppress_ctx:
+                        with suppress_ctx:
+                            self._llm = llama_cpp.Llama(**attempt_kwargs)
+                    else:
+                        self._llm = llama_cpp.Llama(**attempt_kwargs)
+                    last_error = None
+                    break
+                except Exception as attempt_exc:
+                    last_error = attempt_exc
+                    should_retry = idx < len(attempts) and _is_access_violation_error(attempt_exc)
+                    if should_retry:
+                        logger.warning(
+                            "Model load attempt '%s' failed with access violation; retrying with safer settings.",
+                            attempt_name,
+                        )
+                        continue
+                    raise
+
+            if last_error is not None:
+                raise last_error
             
             load_duration = time.perf_counter() - load_start
             logger.info(f"✅ Model loaded successfully in {load_duration:.2f}s")

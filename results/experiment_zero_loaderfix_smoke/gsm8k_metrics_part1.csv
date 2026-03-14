@@ -1,0 +1,2 @@
+problem_id,setup,benchmark,correct,tokens_used,latency_ms,estimated_cost,error
+gsm8k-42,direct,gsm8k,False,1159,29938,2897.5,
